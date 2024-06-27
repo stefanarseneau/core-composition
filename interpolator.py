@@ -1,67 +1,74 @@
-from tqdm import tqdm
+from scipy.interpolate import CloughTocher2DInterpolator, LinearNDInterpolator
+from scipy.interpolate import griddata, interp1d
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
 
 from astropy.table import Table, vstack
 
-from scipy.interpolate import CloughTocher2DInterpolator, LinearNDInterpolator
-from scipy.interpolate import griddata, interp1d
-
-
-def build_interpolator(table):
-    def interpolate_2d(x, y, z, method):
-        if method == 'linear':
-            interpolator = LinearNDInterpolator
-        elif method == 'cubic':
-            interpolator = CloughTocher2DInterpolator
-        return interpolator((x, y), z, rescale=True)
-        #return interp2d(x, y, z, kind=method)
-
-    def interp(x, y, z, interp_type_atm='linear'):
-            grid_z      = griddata(np.array((x, y)).T, z, (grid_x, grid_y), method=interp_type_atm)
-            z_func      = interpolate_2d(x, y, z, interp_type_atm)
-            return grid_z, z_func
-
-    logteff_logg_grid=(3500, 80000, 1000, 8.77, 9.3, 0.01)
-    grid_x, grid_y = np.mgrid[logteff_logg_grid[0]:logteff_logg_grid[1]:logteff_logg_grid[2],
-                                logteff_logg_grid[3]:logteff_logg_grid[4]:logteff_logg_grid[5]]
-
-    mask = table['teff'] > logteff_logg_grid[0]
-    table = table[mask]
-
-    grid_g, g_func = interp(table['teff'], table['logg'], table['Gaia_G'])
-    grid_bp, bp_func = interp(table['teff'], table['logg'], table['Gaia_BP'])
-    grid_rp, rp_func = interp(table['teff'], table['logg'], table['Gaia_RP'])
-
-    photometry = lambda teff, logg: np.array([g_func(teff, logg), bp_func(teff, logg), rp_func(teff, logg)])
-    key = {'Gaia_G' : 0, 'Gaia_BP' : 1, 'Gaia_RP' : 2}
-    return photometry, key
-
-def build_table_over_mass(core, layer, z, basepath = './'):
-    masses = ['110', '116', '123', '129'] # solar masses (e.g. 1.10 Msun)
-    table = Table()
-
-    for mass in masses:
-        # read in the table from the correct file
-        path = f'{basepath}/{core}_{mass}_{layer}_{z}.dat'
-        temp_table = Table.read(path, format='ascii')
-
-        # put the columns into a pyphot-readable standard
-        temp_table.rename_columns(['Teff', 'logg(CGS)'], ['teff', 'logg'])
-        temp_table.remove_columns(['g_1', 'r_1', 'i_1', 'z_1', 'y', 'U', 'B',\
-                            'V', 'R', 'I', 'J', 'H', 'K', 'FUV', 'NUV'])
-        temp_table.rename_columns(['G3', 'Bp3', 'Rp3', 'u', 'g', 'r', 'i', 'z' ],
-                                ['Gaia_G_mag', 'Gaia_BP_mag', 'Gaia_RP_mag', 'SDSS_u_mag', 'SDSS_g_mag', 'SDSS_r_mag', 'SDSS_i_mag', 'SDSS_z_mag'])
+class Interpolator:
+    def __init__(self, core, layer, z, basepath):
+        self.masses = ['110', '116', '123', '129'] # solar masses (e.g. 1.10 Msun)
         
-        # now convert from absolute magnitude to surface flux
-        temp_table['Gaia_G'] = (4*np.pi)**-1 * 10**(-0.4*(temp_table['Gaia_G_mag'] + 21.50763)) * ((10*3.086775e16) / (6.957e8*temp_table['R/R_sun']))**2
-        temp_table['Gaia_BP'] = (4*np.pi)**-1 * 10**(-0.4*(temp_table['Gaia_BP_mag'] + 20.97231)) * ((10*3.086775e16) / (6.957e8*temp_table['R/R_sun']))**2
-        temp_table['Gaia_RP'] = (4*np.pi)**-1 * 10**(-0.4*(temp_table['Gaia_RP_mag'] + 22.26331)) * ((10*3.086775e16) / (6.957e8*temp_table['R/R_sun']))**2
-        
-        # stack the tables
-        table = vstack([table, temp_table])
-    return table
+        self.core = core
+        self.layer = layer
+        self.z = z
+        self.basepath = basepath
+
+        table = self.build_table_over_mass()
+        self.interp_obj = self.build_interpolator(table) 
+
+    def build_interpolator(self, table):
+        def interpolate_2d(x, y, z, method):
+            if method == 'linear':
+                interpolator = LinearNDInterpolator
+            elif method == 'cubic':
+                interpolator = CloughTocher2DInterpolator
+            return interpolator((x, y), z, rescale=True)
+            #return interp2d(x, y, z, kind=method)
+
+        def interp(x, y, z, interp_type_atm='linear'):
+                grid_z      = griddata(np.array((x, y)).T, z, (grid_x, grid_y), method=interp_type_atm)
+                z_func      = interpolate_2d(x, y, z, interp_type_atm)
+                return grid_z, z_func
+
+        logteff_logg_grid=(3500, 80000, 1000, 8.77, 9.3, 0.01)
+        grid_x, grid_y = np.mgrid[logteff_logg_grid[0]:logteff_logg_grid[1]:logteff_logg_grid[2],
+                                    logteff_logg_grid[3]:logteff_logg_grid[4]:logteff_logg_grid[5]]
+
+        mask = table['teff'] > logteff_logg_grid[0]
+        table = table[mask]
+
+        grid_g, g_func = interp(table['teff'], table['logg'], table['Gaia_G'])
+        grid_bp, bp_func = interp(table['teff'], table['logg'], table['Gaia_BP'])
+        grid_rp, rp_func = interp(table['teff'], table['logg'], table['Gaia_RP'])
+
+        photometry = lambda teff, logg: np.array([g_func(teff, logg), bp_func(teff, logg), rp_func(teff, logg)])
+        key = {'Gaia_G' : 0, 'Gaia_BP' : 1, 'Gaia_RP' : 2}
+        return photometry, key
+
+    def build_table_over_mass(self):
+        table = Table()
+
+        for mass in self.masses:
+            # read in the table from the correct file
+            path = f'{self.basepath}/{self.core}_{mass}_{self.layer}_{self.z}.dat'
+            temp_table = Table.read(path, format='ascii')
+
+            # put the columns into a pyphot-readable standard
+            temp_table.rename_columns(['Teff', 'logg(CGS)'], ['teff', 'logg'])
+            temp_table.remove_columns(['g_1', 'r_1', 'i_1', 'z_1', 'y', 'U', 'B',\
+                                'V', 'R', 'I', 'J', 'H', 'K', 'FUV', 'NUV'])
+            temp_table.rename_columns(['G3', 'Bp3', 'Rp3', 'u', 'g', 'r', 'i', 'z' ],
+                                    ['Gaia_G_mag', 'Gaia_BP_mag', 'Gaia_RP_mag', 'SDSS_u_mag', 'SDSS_g_mag', 'SDSS_r_mag', 'SDSS_i_mag', 'SDSS_z_mag'])
+            
+            # now convert from absolute magnitude to surface flux
+            temp_table['Gaia_G'] = (4*np.pi)**-1 * 10**(-0.4*(temp_table['Gaia_G_mag'] + 21.50763)) * ((10*3.086775e16) / (6.957e8*temp_table['R/R_sun']))**2
+            temp_table['Gaia_BP'] = (4*np.pi)**-1 * 10**(-0.4*(temp_table['Gaia_BP_mag'] + 20.97231)) * ((10*3.086775e16) / (6.957e8*temp_table['R/R_sun']))**2
+            temp_table['Gaia_RP'] = (4*np.pi)**-1 * 10**(-0.4*(temp_table['Gaia_RP_mag'] + 22.26331)) * ((10*3.086775e16) / (6.957e8*temp_table['R/R_sun']))**2
+            
+            # stack the tables
+            table = vstack([table, temp_table])
+        return table
 
 
 class Tests:
@@ -94,14 +101,13 @@ class Tests:
             grids = {}
             
             for z in self.zs:
-                table = build_table_over_mass(core, layer, z, basepath = self.basepath)
-                photometry, key = build_interpolator(table)
+                interp = Interpolator(core, layer, z, basepath = self.basepath)
 
                 for i in range(len(self.teffs)):
                     for j in range(len(self.loggs)):
-                        self.grid[i,j] = photometry(self.teffs[i], self.loggs[j])
+                        self.grid[i,j] = interp.interp_obj[0](self.teffs[i], self.loggs[j])
 
-                grids[z] = (photometry, self.grid)
+                grids[z] = (interp.interp_obj[0], self.grid)
                 self.reset_grid()
             self.print_test(grids)
 
@@ -121,14 +127,13 @@ class Tests:
                 grids = {}
                 
                 for layer in self.Hlayers:
-                    table = build_table_over_mass(core, layer, z, basepath = self.basepath)
-                    photometry, key = build_interpolator(table)
+                    interp = Interpolator(core, layer, z, basepath = self.basepath)
 
                     for i in range(len(self.teffs)):
                         for j in range(len(self.loggs)):
-                            self.grid[i,j] = photometry(self.teffs[i], self.loggs[j])
+                            self.grid[i,j] = interp.interp_obj[0](self.teffs[i], self.loggs[j])
 
-                    grids[layer] = (photometry, self.grid)
+                    grids[layer] = (interp.interp_obj[0], self.grid)
                     self.reset_grid()
                 self.print_test(grids)
 
@@ -148,14 +153,13 @@ class Tests:
             grids = {}
             
             for core in self.cores:
-                table = build_table_over_mass(core, layer, z, basepath = self.basepath)
-                photometry, key = build_interpolator(table)
+                interp = Interpolator(core, layer, z, basepath = self.basepath)
 
                 for i in range(len(self.teffs)):
                     for j in range(len(self.loggs)):
-                        self.grid[i,j] = photometry(self.teffs[i], self.loggs[j])
+                        self.grid[i,j] = interp.interp_obj[0](self.teffs[i], self.loggs[j])
 
-                grids[core] = (photometry, self.grid)
+                grids[core] = (interp.interp_obj[0], self.grid)
                 self.reset_grid()
             self.print_test(grids)
 
