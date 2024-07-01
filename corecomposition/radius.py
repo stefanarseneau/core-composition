@@ -73,7 +73,6 @@ def measure_radius(catalog, params, args):
     print(f'ONe failed={sum(table['ONe_failed'])/len(table)*100:2.2f}%')
     print(f'Total failed={total_failed.sum() / len(table)*100:2.2f}%\n')    
 
-
     try:
         table.write(params['savepath'], overwrite=True)
     except:
