@@ -1,1 +1,2 @@
-data/elbadry.fits.gz
+data/*
+elbadry.csv

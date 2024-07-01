@@ -9,14 +9,17 @@ import wdphoto
 
 def measure_radius(catalog, params, args):
     # load in the necessary parameters
+    print('Loading parameters...', end=' ')
     source_ids = np.array(catalog['wd_source_id'])
     obs_mag = np.array([catalog[param] for param in params['column_names'].split(' ')])
     e_obs_mag = np.array([catalog[param] for param in params['column_uncertainties'].split(' ')])
     distances = np.array(catalog[params['distance']])
-    bands = params['pyphot_bands'].split(' ') 
+    bands = params['pyphot_bands'].split(' ')
+    print('Done!') 
 
     # apply Edenhofer dereddening
     if args.deredden:
+        print('Applying dereddening Using Edenhofer+2023')
         l = catalog['wd_l']
         b = catalog['wd_b']
 
@@ -24,20 +27,25 @@ def measure_radius(catalog, params, args):
         obs_mag = wdphoto.deredden(bsq, l, b, obs_mag, distances, bands) # perform query
         del bsq # delete this to save memory
 
+    print('Creating radius table...', end=' ')
     table = Table()
     table['source_id'] = source_ids
     table['distance'] = distances
     for i in range(obs_mag.shape[0]):
         table[params['column_names'].split(' ')[i]] = obs_mag[i,:]
         table[params['column_uncertainties'].split(' ')[i]] = e_obs_mag[i,:]
+    print('Done!')
 
     # create interpolators and photometric engines
+    print('Instantiating photometry interpolators and engines...', end=' ')
     co_model = wdphoto.LaPlataInterpolator(bands, massive_params = ('CO', params['hlayer']))
     one_model = wdphoto.LaPlataInterpolator(bands, massive_params = ('ONe', params['hlayer']))
     CO_Engine = wdphoto.PhotometryEngine(co_model)
     ONe_Engine = wdphoto.PhotometryEngine(one_model)
+    print('Done!')
 
-    outs = np.nan*np.zeros((2, len(obs_mag), 7))
+    print('Measuring radii')
+    outs = np.nan*np.zeros((2, len(table), 7))
     for i in tqdm(range(len(obs_mag))):
         outs[0,i] = CO_Engine(obs_mag[i], e_obs_mag[i], distances[i], p0 = [10000, 9, 0.003])#, p0=[catalog['teff'][i], catalog['logg'][i], 0.003])
         outs[1,i] = ONe_Engine(obs_mag[i], e_obs_mag[i], distances[i], p0 = [10000, 9, 0.003])
@@ -56,10 +64,20 @@ def measure_radius(catalog, params, args):
     table['ONe_chi2'] = outs[1,:,-1]
     table['ONe_roe'] = table['ONe_radius']/table['ONe_e_radius']  
 
+    table['CO_failed'] = np.any([table['CO_chi2'] > 5, table['CO_roe'] < 5], axis=0)
+    table['ONe_failed'] = np.any([table['ONe_chi2'] > 5, table['ONe_roe'] < 5], axis=0)
+    total_failed = np.any([table['CO_failed'], table['ONe_failed']], axis=0)
+
+    print('\nFit Report ==========')
+    print(f'CO failed={len(table['CO_failed'])/len(table)*100:2.2f}%')
+    print(f'ONe failed={len(table['ONe_failed'])/len(table)*100:2.2f}%')
+    print(f'Total failed={total_failed.sum() / len(table)*100:2.2f}%\n')    
+
+
     try:
         table.write(params['savepath'], overwrite=True)
     except:
-        pass 
+        print('Did not write table to file')
 
     return table
 

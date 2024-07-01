@@ -120,7 +120,6 @@ def build_catalog(params, args):
     # query bailer-jones distances
     print('Fetching Bailer-Jones Distances...')
     catalog = get_bailerjones(catalog)
-    print('Done!')
 
     # compute useful absolute magnitude columns
     catalog['ms_m_g'] = catalog['ms_phot_g_mean_mag'] + 5 * (np.log10(catalog['ms_parallax'] / 100))
