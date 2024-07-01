@@ -11,8 +11,8 @@ def measure_radius(catalog, params, args):
     # load in the necessary parameters
     print('Loading parameters...', end=' ')
     source_ids = np.array(catalog['wd_source_id'])
-    obs_mag = np.array([catalog[param] for param in params['column_names'].split(' ')])
-    e_obs_mag = np.array([catalog[param] for param in params['column_uncertainties'].split(' ')])
+    obs_mag = np.array([catalog[param] for param in params['column_names'].split(' ')]).T
+    e_obs_mag = np.array([catalog[param] for param in params['column_uncertainties'].split(' ')]).T
     distances = np.array(catalog[params['distance']])
     bands = params['pyphot_bands'].split(' ')
     print('Done!') 
@@ -31,9 +31,9 @@ def measure_radius(catalog, params, args):
     table = Table()
     table['source_id'] = source_ids
     table['distance'] = distances
-    for i in range(obs_mag.shape[0]):
-        table[params['column_names'].split(' ')[i]] = obs_mag[i,:]
-        table[params['column_uncertainties'].split(' ')[i]] = e_obs_mag[i,:]
+    for i in range(obs_mag.shape[1]):
+        table[params['column_names'].split(' ')[i]] = obs_mag[:,i]
+        table[params['column_uncertainties'].split(' ')[i]] = e_obs_mag[:,i]
     print('Done!')
 
     # create interpolators and photometric engines
@@ -68,9 +68,9 @@ def measure_radius(catalog, params, args):
     table['ONe_failed'] = np.any([table['ONe_chi2'] > 5, table['ONe_roe'] < 5], axis=0)
     total_failed = np.any([table['CO_failed'], table['ONe_failed']], axis=0)
 
-    print('\nFit Report ==========')
-    print(f'CO failed={len(table['CO_failed'])/len(table)*100:2.2f}%')
-    print(f'ONe failed={len(table['ONe_failed'])/len(table)*100:2.2f}%')
+    print('\nFit Report:')
+    print(f'CO failed={sum(table['CO_failed'])/len(table)*100:2.2f}%')
+    print(f'ONe failed={sum(table['ONe_failed'])/len(table)*100:2.2f}%')
     print(f'Total failed={total_failed.sum() / len(table)*100:2.2f}%\n')    
 
 
