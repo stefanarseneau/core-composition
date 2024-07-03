@@ -91,6 +91,20 @@ def get_bailerjones(catalog):
     gaia_d1.rename_column('source_id', 'ms_source_id')
     catalog = join(catalog, gaia_d1, keys = 'ms_source_id')
     return catalog
+
+def get_msrv(catalog, params):
+    stardats = []
+    iters = (len(catalog)+2000) // 2000
+    for i in tqdm(range(iters)):
+            ADQL_CODE1 = """SELECT source_id, radial_velocity, radial_velocity_error
+            FROM gaiadr3.gaia_source
+            WHERE radial_velocity_error < {}
+            AND source_id in {}""".format(params['max_erv'], tuple(catalog['ms_source_id'][2000*i:2000*i+2000]))
+            stardats.append(Gaia.launch_job(ADQL_CODE1,dump_to_file=False).get_results())
+    gaia_d1 = vstack(stardats)
+    gaia_d1.rename_columns(['SOURCE_ID', 'radial_velocity', 'radial_velocity_error'], ['ms_source_id', 'ms_rv', 'ms_erv'])
+    catalog = join(catalog, gaia_d1, keys = 'ms_source_id')
+    return catalog
             
 def initial_mass_threshold(catalog, params):
     # define units that will be useful later
@@ -99,10 +113,10 @@ def initial_mass_threshold(catalog, params):
     newton_G = 6.674e-11
 
     # create the ONe model from WD_models and interpolate from bp-rp and G
-    ONe_model = WD_models.load_model('ft', 'ft', 'o', atm_type = 'H', HR_bands = ['bp-rp', 'G'])
+    model = WD_models.load_model('ft', 'ft', 'ft', atm_type = 'H', HR_bands = ['bp3-rp3', 'G3'])
     
     # interpolate the column to WD_mass using the ONe model
-    catalog['wd_mass'] = ONe_model['HR_to_mass'](catalog['wd_bp_rp'], catalog['wd_m_g'])
+    catalog['wd_mass'] = model['HR_to_mass'](catalog['wd_bp_rp'], catalog['wd_m_g'])
     catalog = catalog[~np.isnan(catalog['wd_mass'])] # get rid of anything that can't interpolate
 
     # return all the targets with interpolated masses above the cutoff
@@ -110,16 +124,14 @@ def initial_mass_threshold(catalog, params):
 
 def build_catalog(params, args):
     # either build or read in the catalog
-    if args.catalog_path == None:
+    if args.path == None:
         catalog = build_catalog(params, args.save_path)
     else:
-        print(f'Reading {args.catalog_path}...', end = ' ')
-        catalog = Table.read(args.catalog_path)
-        print('Done!')
+        catalog = Table.read(args.path)
 
     # query bailer-jones distances
-    print('Fetching Bailer-Jones Distances...')
     catalog = get_bailerjones(catalog)
+    catalog = get_msrv(catalog, params)
 
     # compute useful absolute magnitude columns
     catalog['ms_m_g'] = catalog['ms_phot_g_mean_mag'] + 5 * (np.log10(catalog['ms_parallax'] / 100))
@@ -127,10 +139,7 @@ def build_catalog(params, args):
     print(f'Found {len(catalog):d} WD+MS Wide Binaries')
 
     catalog = make_physical_photometry(catalog)
-
-    print('Applying mass cutoff')
     catalog, highmass = initial_mass_threshold(catalog, params)
-    print(f'Found {len(highmass):d} High-Mass WDs')
 
     if args.verbose:
         # print the color-magnitude diagram
@@ -169,25 +178,11 @@ def build_catalog(params, args):
         plt.legend(framealpha = 0)
         plt.show()
 
-    try:
-        highmass.write(params['savepath'], overwrite=True)
-    except:
-        pass
+    print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
+
+    if args.highmass_path is not None:
+        highmass.write(args.highmass_path, overwrite=True)
     
     return catalog, highmass
-
-if __name__ == "__main__":
-    # read in the config parser
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-    params = config['catalog'] # select the relevant config parameters
-
-    # read in the arguments from the cli
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--catalog-path", nargs='?', default=None)
-    parser.add_argument('-v', '--verbose', action='store_true')
-    args = parser.parse_args()
-
-    build_catalog(params, args)
 
     
