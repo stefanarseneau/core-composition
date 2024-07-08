@@ -12,8 +12,8 @@ import spectromancer as sp
 import corv
 
 from wdphoto.utils import plot
-from build_catalog import build_catalog
-from radius import measure_radius
+from .build_catalog import build_catalog
+from .radius import measure_radius
 
 
 radius_sun = 6.957e8
@@ -58,10 +58,13 @@ config.read('config.ini')
 parser = argparse.ArgumentParser()
 parser.add_argument("path", nargs='?', default=None)
 parser.add_argument('config', nargs='?', default='config.ini')
-parser.add_argument("outfile", nargs='?', default=None)
+parser.add_argument("catfile", nargs='?', default=None)
+parser.add_argument('outfile', nargs='?', default=None)
+
 parser.add_argument('--highmass-path', nargs='?', default=None)
 parser.add_argument('--radius-path', nargs='?', default=None)
 parser.add_argument('--rv-path', nargs='?', default=None)
+
 parser.add_argument('--deredden', action='store_true', default=False)
 parser.add_argument('--plot-radii', action='store_true', default=False)
 parser.add_argument('-v', '--verbose', action='store_true')
@@ -75,64 +78,58 @@ catalog, highmass = build_catalog(catalog_params, args)
 # measure radii
 print('\nMeasuring Radii\n==============================')
 radius_params = config['radius']
-radii = measure_radius(highmass, radius_params, args)
+radii, engine_keys = measure_radius(highmass, radius_params, args)
 
-# measure rvs
-print('\nMeasuring WD RVs\n==============================')
-model = corv.models.make_warwick_da_model(names=['a','b','g','d'])
-observation = sp.Observation('observations/')
-observation.fit_rvs(model, save_column=True, verbose=args.verbose)
+targets = join(highmass, radii, keys_left='wd_source_id', keys_right='source_id')
+# sort the brightest stars first
+targets.sort(['wd_phot_g_mean_mag'])
+targets.write(args.catfile, overwrite=True)
 
-mask = np.all([observation.table['rv_spread'] < 1], axis=0)
-rv_table = observation.table[mask]
+if args.outfile is not None:
+    # measure rvs
+    print('\nMeasuring WD RVs\n==============================')
+    model = corv.models.make_warwick_da_model(names=['a','b','g','d'])
+    observation = sp.Observation('observations/')
+    observation.fit_rvs(model, save_column=True, verbose=args.verbose)
 
-print(f'Measured {len(rv_table)} WD RVs')
+    #mask = np.all([observation.table['rv_spread'] < 1], axis=0)
+    rv_table = observation.table#[mask]
 
-if args.rv_path is not None:
-    rv_table.write(args.rv_path, overwrite=True)
+    print(f'Measured {len(rv_table)} WD RVs')
 
-# join files
-tempfile = join(highmass, radii, keys_left='wd_source_id', keys_right='source_id')
-outfile = join(tempfile, rv_table, keys='source_id')
+    if args.rv_path is not None:
+        rv_table.write(args.rv_path, overwrite=True)
 
-outfile['gravz'] = outfile['rv'] - outfile['ms_rv']
-outfile['e_gravz'] = (outfile['e_rv'] + outfile['ms_erv'])
+    # join files
+    outfile = join(targets, rv_table, keys='source_id')
 
-print(f'Joined {len(outfile)} WD+MS Targets.')
-outfile.write(args.outfile, overwrite=True)
+    outfile['gravz'] = outfile['rv'] - outfile['ms_rv']
+    outfile['e_gravz'] = (outfile['e_rv'] + outfile['ms_erv'])
 
-if args.verbose:
-    rad_array = np.linspace(0.0045, 0.007, 100)
-    vg_array_one = one_model(rad_array, 16278)
-    vg_array_co = co_model(rad_array, 16278)
+    print(f'Joined {len(outfile)} WD+MS Targets.')
+    outfile.write(args.outfile, overwrite=True)
 
-    plt.style.use('./stefan.mplstyle')
+    if args.verbose:
+        rad_array = np.linspace(0.0045, 0.007, 100)
+        vg_array_one = one_model(rad_array, 16278)
+        vg_array_co = co_model(rad_array, 16278)
 
-    plt.figure(figsize = (10,10))
-    plt.plot(rad_array, vg_array_one, label='O/Ne Core', color = 'k')
-    plt.plot(rad_array, vg_array_co, label='C/O Core', color = 'red')
+        plt.style.use('./stefan.mplstyle')
 
-    # Datapoints
-    plt.errorbar(outfile['CO_Hrich_radius'], outfile['gravz'], 
-                 xerr = outfile['CO_Hrich_e_radius'], yerr = outfile['e_gravz'], 
-                 fmt='o', label = 'CO_Hrich', color='blue', ecolor = 'black')
-    plt.errorbar(outfile['CO_Hdef_radius'], outfile['gravz'], 
-                 xerr = outfile['CO_Hdef_e_radius'], yerr = outfile['e_gravz'], 
-                 fmt='o', label = 'CO Hdef', color='orange', ecolor = 'black')
-    
-    plt.errorbar(outfile['ONe_Hrich_radius'], outfile['gravz'], 
-                 xerr = outfile['ONe_Hrich_radius'], yerr = outfile['e_gravz'], 
-                 fmt='o', label = 'ONe Hrich', color='green', ecolor = 'black')
-    plt.errorbar(outfile['ONe_Hdef_radius'], outfile['gravz'], 
-                 xerr = outfile['ONe_Hdef_e_radius'], yerr = outfile['e_gravz'], 
-                 fmt='o', label = 'ONe Hdef', color='red', ecolor = 'black')
-    
-    plt.errorbar(outfile['Warwick_radius'], outfile['gravz'], 
-                 xerr = outfile['Warwick_e_radius'], yerr = outfile['e_gravz'], 
-                 fmt='o', label = 'Warwick', color='yellow', ecolor = 'black')
+        plt.figure(figsize = (10,10))
+        plt.plot(rad_array, vg_array_one, label='O/Ne Core', color = 'k')
+        plt.plot(rad_array, vg_array_co, label='C/O Core', color = 'red')
 
-    plt.xlabel(r'Radius $[R_\odot]$')
-    plt.ylabel(r'$v_g$ $[km/s]$')
+        # Datapoints
+        colors = ['blue', 'orange', 'green', 'red', 'black']
+        for i, key in enumerate(engine_keys):
+            #if not np.any([outfile[f'{key}_failed']], axis=0):
+            plt.errorbar(outfile[f'{key}_radius'], outfile['gravz'], 
+                    xerr = outfile[f'{key}_e_radius'], yerr = outfile['e_gravz'], 
+                    fmt='o', label = f'{key}', color=colors[i], ecolor = 'black')
 
-    plt.legend(framealpha=0)
-    plt.show()
+        plt.xlabel(r'Radius $[R_\odot]$')
+        plt.ylabel(r'$v_g$ $[km/s]$')
+
+        plt.legend(framealpha=0)
+        plt.show()
