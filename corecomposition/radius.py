@@ -77,9 +77,9 @@ def measure_radius(catalog, params, args):
         radii.append(np.mean(band))
 
     table['mean_radius'] = radii
-
     mask = np.all([table['all_clear'], table['mean_radius'] < float(params['mean_radius'])], axis=0)
     table = table[mask]
+    print(f'Found {len(table):d} High Mass WD+MS Wide Binaries')
 
     if args.radius_path is not None:
         table.write(args.radius_path, overwrite=True)
