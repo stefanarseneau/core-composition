@@ -77,7 +77,6 @@ def measure_radius(catalog, params, args):
         radii.append(np.mean(band))
 
     table['mean_radius'] = radii
-    print(eval(params['require_allclear']))
     if eval(params['require_allclear']):
         mask = np.all([table['all_clear'], table['mean_radius'] < float(params['mean_radius'])], axis=0)
     else:

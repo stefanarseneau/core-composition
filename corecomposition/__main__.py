@@ -66,7 +66,19 @@ def build(config, args):
     targets = join(catalog, radii, keys_left='wd_source_id', keys_right='source_id')
     # sort the brightest stars first
     targets.sort(['wd_phot_g_mean_mag'])
-    targets.write(args.catfile, overwrite=True)
+    targets.write(args.outfile, overwrite=True)
+
+    if args.verbose:
+        # print the CMD of the catalog
+        plt.figure(figsize=(10,5))
+        plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
+        plt.scatter(targets['wd_bp_rp'], targets['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
+        plt.ylabel(r'$M_G$')
+        plt.xlabel(r'bp-rp')
+        plt.title(r'CMD')
+        plt.gca().invert_yaxis()
+        plt.legend(framealpha = 0)
+        plt.show()
 
     return catalog, targets, engine_keys
 
@@ -91,6 +103,34 @@ def analyze(targets, config, args):
 
     print(f'Joined {len(outfile)} WD+MS Targets.')
     outfile.write(args.outfile, overwrite=True)
+
+    if args.verbose:
+        rad_array = np.linspace(0.0045, 0.007, 100)
+        vg_array_one = one_model(rad_array, 16278)
+        vg_array_co = co_model(rad_array, 16278)
+
+        radius_keys = [i.split('_')[:-2] for i in outfile.keys() if '_radius' in i]
+
+        plt.style.use('./stefan.mplstyle')
+
+        plt.figure(figsize = (10,10))
+        plt.plot(rad_array, vg_array_one, label='O/Ne Core', color = 'k')
+        plt.plot(rad_array, vg_array_co, label='C/O Core', color = 'red')
+
+        # Datapoints
+        colors = ['blue', 'orange', 'green', 'red', 'black', 'yellow']
+        for i, key in enumerate(radius_keys):
+            #if not np.any([outfile[f'{key}_failed']], axis=0):
+            plt.errorbar(outfile[f'{key}_radius'], outfile['gravz'], 
+                    xerr = outfile[f'{key}_e_radius'], yerr = outfile['e_gravz'], 
+                    fmt='o', label = f'{key}', color=colors[i], ecolor = 'black')
+
+        plt.xlabel(r'Radius $[R_\odot]$')
+        plt.ylabel(r'$v_g$ $[km/s]$')
+
+        plt.legend(framealpha=0)
+        plt.show()
+    
     return outfile, rv_table
 
 if __name__ == '__main__':
@@ -118,46 +158,10 @@ if __name__ == '__main__':
 
     if args.mode == 'build':
         catalog, targets, engine_keys = build(config, args)
-        if args.verbose:
-            # print the CMD of the catalog
-            plt.figure(figsize=(10,5))
-            plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
-            plt.scatter(targets['wd_bp_rp'], targets['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
-            plt.ylabel(r'$M_G$')
-            plt.xlabel(r'bp-rp')
-            plt.title(r'CMD')
-            plt.gca().invert_yaxis()
-            plt.legend(framealpha = 0)
-            plt.show()
+        
 
     if args.mode == 'analyze':
-        targets = Table.read(args.obs_path)
+        targets = Table.read(args.path)
         outfile, rv_table = analyze(targets, config, args)
 
-        if args.verbose:
-            rad_array = np.linspace(0.0045, 0.007, 100)
-            vg_array_one = one_model(rad_array, 16278)
-            vg_array_co = co_model(rad_array, 16278)
-
-            radius_keys = [i for i in outfile.keys() if '_radius' in i]
-
-            plt.style.use('./stefan.mplstyle')
-
-            plt.figure(figsize = (10,10))
-            plt.plot(rad_array, vg_array_one, label='O/Ne Core', color = 'k')
-            plt.plot(rad_array, vg_array_co, label='C/O Core', color = 'red')
-
-            # Datapoints
-            colors = ['blue', 'orange', 'green', 'red', 'black', 'yellow']
-            for i, key in enumerate(radius_keys):
-                #if not np.any([outfile[f'{key}_failed']], axis=0):
-                plt.errorbar(outfile[f'{key}_radius'], outfile['gravz'], 
-                        xerr = outfile[f'{key}_e_radius'], yerr = outfile['e_gravz'], 
-                        fmt='o', label = f'{key}', color=colors[i], ecolor = 'black')
-
-            plt.xlabel(r'Radius $[R_\odot]$')
-            plt.ylabel(r'$v_g$ $[km/s]$')
-
-            plt.legend(framealpha=0)
-            plt.show()
-    
+        
