@@ -80,10 +80,23 @@ print('\nMeasuring Radii\n==============================')
 radius_params = config['radius']
 radii, engine_keys = measure_radius(highmass, radius_params, args)
 
-targets = join(highmass, radii, keys_left='wd_source_id', keys_right='source_id')
+targets = join(catalog, radii, keys_left='wd_source_id', keys_right='source_id')
 # sort the brightest stars first
 targets.sort(['wd_phot_g_mean_mag'])
 targets.write(args.catfile, overwrite=True)
+
+if args.verbose:
+    # print the CMD of the catalog
+    plt.figure(figsize=(10,5))
+    plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
+    plt.scatter(targets['wd_bp_rp'], targets['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
+    plt.ylabel(r'$M_G$')
+    plt.xlabel(r'bp-rp')
+    plt.title(r'CMD')
+    plt.gca().invert_yaxis()
+    plt.legend(framealpha = 0)
+    plt.show()
+
 
 if args.outfile is not None:
     # measure rvs

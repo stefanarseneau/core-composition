@@ -136,53 +136,33 @@ def build_catalog(params, args):
     # compute useful absolute magnitude columns
     catalog['ms_m_g'] = catalog['ms_phot_g_mean_mag'] + 5 * (np.log10(catalog['ms_parallax'] / 100))
     catalog['wd_m_g'] = catalog['wd_phot_g_mean_mag'] + 5 * (np.log10(catalog['wd_parallax'] / 100))
-    print(f'Found {len(catalog):d} WD+MS Wide Binaries')
 
     catalog = make_physical_photometry(catalog)
-    catalog, highmass = initial_mass_threshold(catalog, params)
+
+    # filter out probable binaries according to specified cuts
+    mask = np.all([catalog['wd_ruwe'] < float(params['ruwe']), catalog['ms_ruwe'] < float(params['ruwe']),
+                   catalog['wd_phot_bp_rp_excess_factor'] < float(params['bp_rp_excess']),
+                   catalog['ms_phot_bp_rp_excess_factor'] < float(params['bp_rp_excess'])], axis=0)
+    highmass = catalog[mask]
+
+    print(f'Found {len(highmass):d} WD+MS Wide Binaries')
 
     if args.verbose:
-        # print the color-magnitude diagram
-        plt.figure(figsize=(10,5))
-        plt.scatter(catalog['ms_bp_rp'], catalog['ms_m_g'], label='Main Sequence', alpha = 0.5, s=5)
-        plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5)
-        plt.ylabel(r'$M_G$')
-        plt.xlabel(r'bp-rp')
-        plt.title(r'CMD')
-        plt.gca().invert_yaxis()
-        plt.legend(framealpha = 0)
-        plt.show()
-
-        # print the histogram of the interpolated masses
-        f = plt.figure(figsize = (10, 3))
-        N, bins, patches = plt.hist(catalog['wd_mass'], bins = 50)
-        for ii, val in enumerate(bins):
-            if val >= float(params['cutoff_mass']):
-                point = ii-1
-                break
-        for p in range(len(patches)):
-            if p >= point:
-                patches[p].set_facecolor('green')
-        plt.axvline(x = float(params['cutoff_mass']), c='k', ls = '--', alpha = 0.5)
-        plt.xlabel('Interpolated WD Mass')
-        plt.show()
+         pass
 
         # print the CMD of the catalog
-        plt.figure(figsize=(10,5))
-        plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
-        plt.scatter(highmass['wd_bp_rp'], highmass['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
-        plt.ylabel(r'$M_G$')
-        plt.xlabel(r'bp-rp')
-        plt.title(r'CMD')
-        plt.gca().invert_yaxis()
-        plt.legend(framealpha = 0)
-        plt.show()
+        #plt.figure(figsize=(10,5))
+        #plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
+        #plt.scatter(highmass['wd_bp_rp'], highmass['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
+        #plt.ylabel(r'$M_G$')
+        #plt.xlabel(r'bp-rp')
+        #plt.title(r'CMD')
+        #plt.gca().invert_yaxis()
+        #plt.legend(framealpha = 0)
+        #plt.show()
 
-    print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
+    #print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
 
-    if args.highmass_path is not None:
-        highmass.write(args.highmass_path, overwrite=True)
-    
     return catalog, highmass
 
     

@@ -69,6 +69,18 @@ def measure_radius(catalog, params, args):
         print(f'{key} failed={sum(table[f'{key}_failed'])/len(table)*100:2.2f}%')
     print(f'Total failed={(1 - (sum(table['all_clear']) / len(table)))*100:2.2f}%')   
 
+    radii = []
+    for row in table:
+        band = []
+        for key in engines.keys():
+            band.append(row[f'{key}_radius'])
+        radii.append(np.mean(band))
+
+    table['mean_radius'] = radii
+
+    mask = np.all([table['all_clear'], table['mean_radius'] < float(params['mean_radius'])], axis=0)
+    table = table[mask]
+
     if args.radius_path is not None:
         table.write(args.radius_path, overwrite=True)
 
