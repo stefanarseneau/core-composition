@@ -77,7 +77,11 @@ def measure_radius(catalog, params, args):
         radii.append(np.mean(band))
 
     table['mean_radius'] = radii
-    mask = np.all([table['all_clear'], table['mean_radius'] < float(params['mean_radius'])], axis=0)
+    print(eval(params['require_allclear']))
+    if eval(params['require_allclear']):
+        mask = np.all([table['all_clear'], table['mean_radius'] < float(params['mean_radius'])], axis=0)
+    else:
+        mask = np.all([table['mean_radius'] < float(params['mean_radius'])], axis=0)
     table = table[mask]
     print(f'Found {len(table):d} High Mass WD+MS Wide Binaries')
 
