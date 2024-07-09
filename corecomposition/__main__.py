@@ -60,7 +60,6 @@ def build(config, args):
 
     # measure radii
     print('\nMeasuring Radii\n==============================')
-    
     radii, engine_keys = measure_radius(highmass, radius_params, args)
 
     targets = join(catalog, radii, keys_left='wd_source_id', keys_right='source_id')
@@ -72,7 +71,13 @@ def build(config, args):
         # print the CMD of the catalog
         plt.figure(figsize=(10,5))
         plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
-        plt.scatter(targets['wd_bp_rp'], targets['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
+        plt.scatter(targets['wd_bp_rp'], targets['wd_m_g'], label='Massive White Dwarf', alpha = 1, s=10, c='red')
+        plt.scatter(catalog['ms_bp_rp'], catalog['ms_m_g'], alpha = 0.5, s=5, c='k')
+        plt.scatter(targets['ms_bp_rp'], targets['ms_m_g'], alpha = 1, s=10, c='red')
+
+        for i in range(len(targets)):
+            plt.plot([targets['wd_bp_rp'][i], targets['ms_bp_rp'][i]], [targets['wd_m_g'][i], targets['ms_m_g'][i]], c = 'red', ls='-', alpha=0.3, lw = 0.8, zorder = 0)
+
         plt.ylabel(r'$M_G$')
         plt.xlabel(r'bp-rp')
         plt.title(r'CMD')
@@ -84,7 +89,7 @@ def build(config, args):
 
 def analyze(targets, config, args):
     # measure rvs
-    print('\nMeasuring WD RVs\n==============================')
+    print('Measuring WD RVs\n==============================')
     model = corv.models.make_warwick_da_model(names=['a','b','g','d'])
     observation = sp.Observation(args.obspath)
     observation.fit_rvs(model, save_column=True, verbose=args.verbose)
@@ -109,7 +114,7 @@ def analyze(targets, config, args):
         vg_array_one = one_model(rad_array, 16278)
         vg_array_co = co_model(rad_array, 16278)
 
-        radius_keys = [i.split('_')[:-2] for i in outfile.keys() if '_radius' in i]
+        radius_keys = ['Warwick', 'CO_Hrich', 'ONe_Hrich', 'CO_Hdef', 'ONe_Hdef']
 
         plt.style.use('./stefan.mplstyle')
 

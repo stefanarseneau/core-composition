@@ -123,11 +123,8 @@ def initial_mass_threshold(catalog, params):
     return catalog, catalog[catalog['wd_mass'] > float(params['cutoff_mass'])]
 
 def build_catalog(params, args):
-    # either build or read in the catalog
-    if args.path == None:
-        catalog = build_catalog(params, args.save_path)
-    else:
-        catalog = Table.read(args.path)
+    catalog = Table.read(args.path)
+    catalog = catalog[catalog['wd_parallax_over_error'] > float(params['parallax_over_error'])]
 
     # query bailer-jones distances
     catalog = get_bailerjones(catalog)
@@ -146,20 +143,6 @@ def build_catalog(params, args):
     highmass = catalog[mask]
 
     print(f'Found {len(highmass):d} WD+MS Wide Binaries')
-
-    if args.verbose:
-         pass
-
-        # print the CMD of the catalog
-        #plt.figure(figsize=(10,5))
-        #plt.scatter(catalog['wd_bp_rp'], catalog['wd_m_g'], label='White Dwarf', alpha = 0.5, s=5, c='k')
-        #plt.scatter(highmass['wd_bp_rp'], highmass['wd_m_g'], label='Massive White Dwarf', alpha = 0.5, s=10, c='red')
-        #plt.ylabel(r'$M_G$')
-        #plt.xlabel(r'bp-rp')
-        #plt.title(r'CMD')
-        #plt.gca().invert_yaxis()
-        #plt.legend(framealpha = 0)
-        #plt.show()
 
     #print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
 
