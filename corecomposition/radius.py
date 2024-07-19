@@ -44,14 +44,17 @@ def measure_radius(catalog, params, deredden = False, plot_radii = False):
     outs = np.nan*np.zeros((len(engines), len(table), 7))
     for i in tqdm(range(len(obs_mag))):
         for j, key in enumerate(engines.keys()):
-            outs[j,i] = engines[key][0](obs_mag[i], e_obs_mag[i], distances[i], p0 = [10000, engines[key][1], 0.003])#, p0=[catalog['teff'][i], catalog['logg'][i], 0.003])
-
+            radius, e_radius, teff, e_teff, logg, e_logg, result = engines[key][0](obs_mag[i], e_obs_mag[i], distances[i], p0 = [10000, engines[key][1], 0.003])[:-1]#, p0=[catalog['teff'][i], catalog['logg'][i], 0.003])
+            outs[j,i] = np.array([radius, e_radius, teff, e_teff, logg, e_logg, result.redchi])
+            
             if plot_radii:
                 model = wdphoto.utils.plot(obs_mag[i], e_obs_mag[i], distances[i], outs[j,i,0], outs[j,i,2], engines[key][1], key)
                 plt.legend()
                 plt.title(f'Gaia DR3 {source_ids[i]} {key} Model')
                 model.savefig(f'/mnt/d/arsen/research/proj/core-composition/figures/{key}/{source_ids[i]}.png')
                 plt.close()
+
+
 
     for j, key in enumerate(engines.keys()):
         table[f'{key}_radius'] = outs[j,:,0]
