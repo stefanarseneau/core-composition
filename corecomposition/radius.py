@@ -8,7 +8,7 @@ from astropy.table import Table
 from dustmaps.edenhofer2023 import Edenhofer2023Query
 import wdphoto
 
-def measure_radius(catalog, params, args):
+def measure_radius(catalog, params, deredden = False, plot_radii = False):
     # load in the necessary parameters
     source_ids = np.array(catalog['wd_source_id'])
     obs_mag = np.array([catalog[param] for param in params['column_names'].split(' ')]).T
@@ -17,7 +17,7 @@ def measure_radius(catalog, params, args):
     bands = params['pyphot_bands'].split(' ')
 
     # apply Edenhofer dereddening
-    if args.deredden:
+    if deredden:
         l = catalog['wd_l']
         b = catalog['wd_b']
 
@@ -46,7 +46,7 @@ def measure_radius(catalog, params, args):
         for j, key in enumerate(engines.keys()):
             outs[j,i] = engines[key][0](obs_mag[i], e_obs_mag[i], distances[i], p0 = [10000, engines[key][1], 0.003])#, p0=[catalog['teff'][i], catalog['logg'][i], 0.003])
 
-            if args.plot_radii:
+            if plot_radii:
                 model = wdphoto.utils.plot(obs_mag[i], e_obs_mag[i], distances[i], outs[j,i,0], outs[j,i,2], engines[key][1], key)
                 plt.legend()
                 plt.title(f'Gaia DR3 {source_ids[i]} {key} Model')
@@ -84,8 +84,8 @@ def measure_radius(catalog, params, args):
     table = table[mask]
     print(f'Found {len(table):d} High Mass WD+MS Wide Binaries')
 
-    if args.radius_path is not None:
-        table.write(args.radius_path, overwrite=True)
+    #if args.radius_path is not None:
+    #    table.write(args.radius_path, overwrite=True)
 
     return table, engines.keys()
 

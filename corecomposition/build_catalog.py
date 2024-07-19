@@ -122,8 +122,7 @@ def initial_mass_threshold(catalog, params):
     # return all the targets with interpolated masses above the cutoff
     return catalog, catalog[catalog['wd_mass'] > float(params['cutoff_mass'])]
 
-def build_catalog(params, args):
-    catalog = Table.read(args.path)
+def build_catalog(params, catalog):
     catalog = catalog[catalog['wd_parallax_over_error'] > float(params['parallax_over_error'])]
 
     # query bailer-jones distances

@@ -56,11 +56,12 @@ def build(config, args):
 
     # either build or read in the catalog
     print('Building Catalog\n==============================')
-    catalog, highmass = build_catalog(catalog_params, args)
+    catalog = Table.read(args.path)
+    catalog, highmass = build_catalog(catalog_params, catalog)
 
     # measure radii
     print('\nMeasuring Radii\n==============================')
-    radii, engine_keys = measure_radius(highmass, radius_params, args)
+    radii, engine_keys = measure_radius(highmass, radius_params, args.deredden, args.plot_radii)
 
     targets = join(catalog, radii, keys_left='wd_source_id', keys_right='source_id')
     # sort the brightest stars first
@@ -76,7 +77,7 @@ def build(config, args):
         plt.scatter(targets['ms_bp_rp'], targets['ms_m_g'], alpha = 1, s=10, c='red')
 
         for i in range(len(targets)):
-            plt.plot([targets['wd_bp_rp'][i], targets['ms_bp_rp'][i]], [targets['wd_m_g'][i], targets['ms_m_g'][i]], c = 'red', ls='-', alpha=0.3, lw = 0.8, zorder = 0)
+            plt.plot([targets['wd_bp_rp'][i], targets['ms_bp_rp'][i]], [targets['wd_m_g'][i], targets['ms_m_g'][i]], c = 'red', ls='-', alpha=0.3, lw = 0.8, zorder = 10)
 
         plt.ylabel(r'$M_G$')
         plt.xlabel(r'bp-rp')
