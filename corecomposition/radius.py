@@ -32,10 +32,10 @@ def measure_radius(catalog, params, deredden = False, plot_radii = False):
 
     # create interpolators and photometric engines
     warwick = wdphoto.WarwickDAInterpolator(bands)
-    co_hrich_model = wdphoto.LaPlataInterpolator(bands, massive_params = ('CO', 'Hrich'))
-    one_hrich_model = wdphoto.LaPlataInterpolator(bands, massive_params = ('ONe', 'Hrich'))
-    co_hdef_model = wdphoto.LaPlataInterpolator(bands, massive_params = ('CO', 'Hdef'))
-    one_hdef_model = wdphoto.LaPlataInterpolator(bands, massive_params = ('ONe', 'Hdef'))
+    co_hrich_model = wdphoto.LaPlataUltramassive(bands, core = 'CO', layer = 'Hrich')
+    one_hrich_model = wdphoto.LaPlataUltramassive(bands, core = 'ONe', layer = 'Hrich')
+    co_hdef_model = wdphoto.LaPlataUltramassive(bands, core = 'CO', layer = 'Hdef')
+    one_hdef_model = wdphoto.LaPlataUltramassive(bands, core = 'ONe', layer = 'Hdef')
 
     interpolators = {'Warwick': (warwick, 8), 'CO_Hrich': (co_hrich_model, 9), 'ONe_Hrich': (one_hrich_model, 9),
                      'CO_Hdef': (co_hdef_model, 9), 'ONe_Hdef': (one_hdef_model, 9)}
