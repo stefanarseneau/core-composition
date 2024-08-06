@@ -39,7 +39,7 @@ def measure_radius(catalog, params, deredden = False, plot_radii = False):
 
     interpolators = {'Warwick': (warwick, 8), 'CO_Hrich': (co_hrich_model, 9), 'ONe_Hrich': (one_hrich_model, 9),
                      'CO_Hdef': (co_hdef_model, 9), 'ONe_Hdef': (one_hdef_model, 9)}
-    engines = {key : (wdphoto.PhotometryEngine(interpolators[key][0]), interpolators[key][1]) for key in interpolators.keys()}
+    engines = {key : (wdphoto.CoarseEngine(interpolators[key][0]), interpolators[key][1]) for key in interpolators.keys()}
 
     outs = np.nan*np.zeros((len(engines), len(table), 7))
     for i in tqdm(range(len(obs_mag))):
