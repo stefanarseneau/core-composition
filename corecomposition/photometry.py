@@ -21,7 +21,7 @@ def des_to_ps1(bands, e_bands = None):
     if e_bands is not None:
         return conversion(bands), e_conversion(e_bands)
     else:
-        return converison(bands)
+        return conversion(bands)
 
 
 def des_photo(source_ids, convert = False):
