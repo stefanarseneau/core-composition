@@ -2,7 +2,9 @@ import pyvo as vo
 from astropy.table import Table, join, vstack
 
 import numpy as np
-import matplotlib.pyplot as plt
+import pickle
+
+from .interpolator import MCMCEngine, WarwickDAInterpolator, LaPlataUltramassive, LaPlataBase
 
 
 def des_to_ps1(bands, e_bands = None):
@@ -102,12 +104,55 @@ def fetch_photometry(source_ids):
         des_photometry['source'] = 'des'
         missing_ids = [id for id in source_ids if id not in des_photometry['source_id']]
     except:
+        des_photometry = None
         missing_ids = source_ids
 
-    try:
-        panstarrs_photometry = panstarrs_photo(missing_ids)
-        panstarrs_photometry['source'] = 'ps1'
+    panstarrs_photometry = panstarrs_photo(missing_ids)
+    panstarrs_photometry['source'] = 'ps1'
+    
+    if des_photometry is not None:
         photometry = vstack([des_photometry, panstarrs_photometry])
-    except:
-        photometry = None
+
     return photometry
+
+class Photometry:
+    def __init__(self, source_ids, distances, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses):
+        panstarrs = fetch_photometry(source_ids)
+
+        self.photo = {}
+        for ii, id in enumerate(source_ids):
+            ix = np.where(panstarrs['source_id'] == id)[0]
+            bands = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
+            photo = np.array(gaia_photo[ii])
+            e_photo = np.array(e_gaia_photo[ii])
+        
+            bands = np.append(bands, np.array(['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']))
+            photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
+            e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], panstarrs['e_PS1_r'][ix], panstarrs['e_PS1_i'][ix], panstarrs['e_PS1_z'][ix], panstarrs['e_PS1_y'][ix]]))
+
+            self.photo[id] = [distances[ii], astrometric_params_solved[ii], bands, photo, e_photo, initial_guesses[ii]]
+
+        self.check_valid()
+
+    def check_valid(self):
+        for key in self.photo.keys():
+            # find and delete invalid PanSTARRS photometry
+            invalid = np.where(self.photo[key][1] == -999)
+            for i in range(len(self.photo[key])):
+                self.photo[key][i] = np.delete(self.photo[key][i], invalid)
+
+    def run_mcmc(self, interpolator, **kwargs):
+        for id in self.photo.keys():
+            interp = interpolator(self.bands, **kwargs)
+            engine = MCMCEngine(interp)
+
+            chain = engine.run_mcmc(self.photo, self.e_photo, self.distance, initial_params)
+            self.photo[key].append(chain)
+
+    def write(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.photo, f)
+
+
+
+
