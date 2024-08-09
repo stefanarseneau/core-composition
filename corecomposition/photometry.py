@@ -142,12 +142,14 @@ class Photometry:
                 self.photo[key][i] = np.delete(self.photo[key][i], invalid)
 
     def run_mcmc(self, interpolator, **kwargs):
+        chains = {}
         for id in self.photo.keys():
             interp = interpolator(self.bands, **kwargs)
             engine = MCMCEngine(interp)
 
             chain = engine.run_mcmc(self.photo, self.e_photo, self.distance, initial_params)
-            self.photo[key].append(chain)
+            chains[id] = chain
+        return chains
 
     def write(self, path):
         with open(path, 'wb') as f:
