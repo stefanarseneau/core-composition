@@ -69,7 +69,7 @@ def deredden(bsq, l, b, photo, distance, bands):
     photo_corrected = np.array([photo[:,i] - ext for i, ext in enumerate(ext_all.T)])
     return photo_corrected
 
-def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag, phot_g_mean_flux):
+def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
     """
     Correct the G-band fluxes and magnitudes for the input list of Gaia EDR3 data.
     
@@ -82,8 +82,6 @@ def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag, phot_g_mea
         The astrometric solution type listed in the Gaia EDR3 archive.
     phot_g_mean_mag: float, numpy.ndarray
         The G-band magnitude as listed in the Gaia EDR3 archive.
-    phot_g_mean_flux: float, numpy.ndarray
-        The G-band flux as listed in the Gaia EDR3 archive.
         
     Returns
     -------
@@ -95,18 +93,16 @@ def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag, phot_g_mea
     Example
     -------
     
-    gmag_corr, gflux_corr = correct_gband(bp_rp, astrometric_params_solved, phot_g_mean_mag, phot_g_mean_flux)
+    gmag_corr = correct_gband(bp_rp, astrometric_params_solved, phot_g_mean_mag)
     """
     bp_rp = bp - rp
 
-    if np.isscalar(bp_rp) or np.isscalar(astrometric_params_solved) or np.isscalar(phot_g_mean_mag) \
-                    or np.isscalar(phot_g_mean_flux):
+    if np.isscalar(bp_rp) or np.isscalar(astrometric_params_solved) or np.isscalar(phot_g_mean_mag):
         bp_rp = np.float64(bp_rp)
         astrometric_params_solved = np.int64(astrometric_params_solved)
         phot_g_mean_mag = np.float64(phot_g_mean_mag)
-        phot_g_mean_flux = np.float64(phot_g_mean_flux)
     
-    if not (bp_rp.shape == astrometric_params_solved.shape == phot_g_mean_mag.shape == phot_g_mean_flux.shape):
+    if not (bp_rp.shape == astrometric_params_solved.shape == phot_g_mean_mag.shape):
         raise ValueError('Function parameters must be of the same shape!')
     
     do_not_correct = np.isnan(bp_rp) | (phot_g_mean_mag<13) | (astrometric_params_solved == 31)
@@ -121,9 +117,8 @@ def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag, phot_g_mea
         0.01747*np.power(bp_rp_c[bright_correct],2) - 0.00277*np.power(bp_rp_c[bright_correct],3)
     
     gmag_corrected = phot_g_mean_mag - 2.5*np.log10(correction_factor)
-    gflux_corrected = phot_g_mean_flux * correction_factor
     
-    return gmag_corrected, gflux_corrected
+    return gmag_corrected
 
 # convert air wavelengths to vacuum
 def air2vac(wv):

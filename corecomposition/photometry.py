@@ -2,10 +2,61 @@ import pyvo as vo
 from astropy.table import Table, join, vstack
 
 import numpy as np
+from tqdm import tqdm
 import pickle
 
 from .interpolator import MCMCEngine, WarwickDAInterpolator, LaPlataUltramassive, LaPlataBase
 
+def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
+    """
+    Correct the G-band fluxes and magnitudes for the input list of Gaia EDR3 data.
+    
+    Parameters
+    ----------
+    
+    bp_rp: float, numpy.ndarray
+        The (BP-RP) colour listed in the Gaia EDR3 archive.
+    astrometric_params_solved: int, numpy.ndarray
+        The astrometric solution type listed in the Gaia EDR3 archive.
+    phot_g_mean_mag: float, numpy.ndarray
+        The G-band magnitude as listed in the Gaia EDR3 archive.
+        
+    Returns
+    -------
+    
+    The corrected G-band magnitudes and fluxes. The corrections are only applied to
+    sources with a 2-paramater or 6-parameter astrometric solution fainter than G=13, 
+    for which a (BP-RP) colour is available.
+    
+    Example
+    -------
+    
+    gmag_corr = correct_gband(bp_rp, astrometric_params_solved, phot_g_mean_mag)
+    """
+    bp_rp = bp - rp
+
+    if np.isscalar(bp_rp) or np.isscalar(astrometric_params_solved) or np.isscalar(phot_g_mean_mag):
+        bp_rp = np.float64(bp_rp)
+        astrometric_params_solved = np.int64(astrometric_params_solved)
+        phot_g_mean_mag = np.float64(phot_g_mean_mag)
+    
+    if not (bp_rp.shape == astrometric_params_solved.shape == phot_g_mean_mag.shape):
+        raise ValueError('Function parameters must be of the same shape!')
+    
+    do_not_correct = np.isnan(bp_rp) | (phot_g_mean_mag<13) | (astrometric_params_solved == 31)
+    bright_correct = np.logical_not(do_not_correct) & (phot_g_mean_mag>=13) & (phot_g_mean_mag<=16)
+    faint_correct = np.logical_not(do_not_correct) & (phot_g_mean_mag>16)
+    bp_rp_c = np.clip(bp_rp, 0.25, 3.0)
+    
+    correction_factor = np.ones_like(phot_g_mean_mag)
+    correction_factor[faint_correct] = 1.00525 - 0.02323*bp_rp_c[faint_correct] + \
+        0.01740*np.power(bp_rp_c[faint_correct],2) - 0.00253*np.power(bp_rp_c[faint_correct],3)
+    correction_factor[bright_correct] = 1.00876 - 0.02540*bp_rp_c[bright_correct] + \
+        0.01747*np.power(bp_rp_c[bright_correct],2) - 0.00277*np.power(bp_rp_c[bright_correct],3)
+    
+    gmag_corrected = phot_g_mean_mag - 2.5*np.log10(correction_factor)
+    
+    return gmag_corrected
 
 def des_to_ps1(bands, e_bands = None):
     # bands should be formatted as grizy
@@ -109,11 +160,11 @@ def fetch_photometry(source_ids):
 
     panstarrs_photometry = panstarrs_photo(missing_ids)
     panstarrs_photometry['source'] = 'ps1'
-    
+
     if des_photometry is not None:
         photometry = vstack([des_photometry, panstarrs_photometry])
-
-    return photometry
+        return photometry
+    return panstarrs_photometry
 
 class Photometry:
     def __init__(self, source_ids, distances, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses):
@@ -125,6 +176,8 @@ class Photometry:
             bands = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
             photo = np.array(gaia_photo[ii])
             e_photo = np.array(e_gaia_photo[ii])
+
+            photo[0] = correct_gband(photo[1], photo[2], astrometric_params_solved[ii], photo[0])
         
             bands = np.append(bands, np.array(['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']))
             photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
@@ -137,17 +190,17 @@ class Photometry:
     def check_valid(self):
         for key in self.photo.keys():
             # find and delete invalid PanSTARRS photometry
-            invalid = np.where(self.photo[key][1] == -999)
-            for i in range(len(self.photo[key])):
-                self.photo[key][i] = np.delete(self.photo[key][i], invalid)
+            invalid = np.where(self.photo[key][3] == -999)
+            for i in range(3):
+                self.photo[key][i+2] = np.delete(self.photo[key][i+2], invalid)
 
     def run_mcmc(self, interpolator, **kwargs):
         chains = {}
-        for id in self.photo.keys():
-            interp = interpolator(self.bands, **kwargs)
+        for id in tqdm(self.photo.keys()):
+            interp = interpolator(self.photo[id][2], **kwargs)
             engine = MCMCEngine(interp)
 
-            chain = engine.run_mcmc(self.photo, self.e_photo, self.distance, initial_params)
+            chain = engine.run_mcmc(self.photo[id][3], self.photo[id][4], self.photo[id][0], self.photo[id][5])
             chains[id] = chain
         return chains
 
