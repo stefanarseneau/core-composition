@@ -37,9 +37,8 @@ def plot(obs_mag, e_obs_mag, distance, radius, teff, logg, Engine):
     return f
 
 
-def deredden(bsq, l, b, photo, distance, bands):
+def deredden(bsq, coords, photo, bands):
     # create the coordinates to query against
-    coords = [SkyCoord(frame="galactic", l=l[i]*u.deg, b=b[i]*u.deg, distance = distance[i] * u.pc) for i in range(len(l))]
     table = Table()
     table['coords'] = coords
     

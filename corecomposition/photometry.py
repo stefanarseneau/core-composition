@@ -6,6 +6,7 @@ from tqdm import tqdm
 import pickle
 
 from .interpolator import MCMCEngine, WarwickDAInterpolator, LaPlataUltramassive, LaPlataBase
+from .interpolator.utils import deredden
 
 def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
     """
@@ -167,7 +168,7 @@ def fetch_photometry(source_ids):
     return panstarrs_photometry
 
 class Photometry:
-    def __init__(self, source_ids, distances, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses):
+    def __init__(self, source_ids, geometry, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses):
         panstarrs = fetch_photometry(source_ids)
 
         self.photo = {}
@@ -183,7 +184,7 @@ class Photometry:
             photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
             e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], panstarrs['e_PS1_r'][ix], panstarrs['e_PS1_i'][ix], panstarrs['e_PS1_z'][ix], panstarrs['e_PS1_y'][ix]]))
 
-            self.photo[id] = [distances[ii], astrometric_params_solved[ii], bands, photo, e_photo, initial_guesses[ii]]
+            self.photo[id] = [geometry[ii], astrometric_params_solved[ii], bands, photo, e_photo, initial_guesses[ii]]
 
         self.check_valid()
 
@@ -194,13 +195,18 @@ class Photometry:
             for i in range(3):
                 self.photo[key][i+2] = np.delete(self.photo[key][i+2], invalid)
 
+    def deredden(self, bsq):
+        for ii, id in tqdm(enumerate(self.photo.keys())):
+            photo_corrected = deredden(bsq, self.photo[id][0], self.photo[id][3], self.photo[id][2])
+            self.photo[id][3] = photo_corrected
+
     def run_mcmc(self, interpolator, **kwargs):
         chains = {}
         for id in tqdm(self.photo.keys()):
             interp = interpolator(self.photo[id][2], **kwargs)
             engine = MCMCEngine(interp)
 
-            chain = engine.run_mcmc(self.photo[id][3], self.photo[id][4], self.photo[id][0], self.photo[id][5])
+            chain = engine.run_mcmc(self.photo[id][3], self.photo[id][4], self.photo[id][0].distance.value, self.photo[id][5])
             chains[id] = chain
         return chains
 
