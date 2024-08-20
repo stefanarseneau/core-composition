@@ -172,14 +172,14 @@ class Photometry:
         panstarrs = fetch_photometry(source_ids)
 
         self.geometry = geometry
-        self.source_ids = []
+        self.source_ids = source_ids
         self.bands = []
         self.photometry = []
         self.e_photometry = []
         self.astrometric_params_solved = astrometric_params_solved
         self.initial_guess = initial_guesses
         
-        for ii, id in tqdm(enumerate(source_ids)):
+        for ii, id in tqdm(range(len(self.source_ids))):
             ix = np.where(panstarrs['source_id'] == id)[0]
             band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
             photo = np.array(gaia_photo[ii])
@@ -193,18 +193,17 @@ class Photometry:
             photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
             e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], panstarrs['e_PS1_r'][ix], panstarrs['e_PS1_i'][ix], panstarrs['e_PS1_z'][ix], panstarrs['e_PS1_y'][ix]]))
 
+            # check valid photometry
+            invalid = np.where(photo < -50)
+            band = np.delete(band, invalid)
+            photo = np.delete(photo, invalid)
+            e_photo = np.delete(e_photo, invalid)
+
             # optionally deredden
             if bsq is not None:
                 photo = deredden(bsq, self.geometry[ii], photo, band)
 
-            # check valid photometry
-            invalid = np.where(photo == -999)
-            band[ii] = np.delete(band, invalid)
-            photo[ii] = np.delete(photo, invalid)
-            e_photo[ii] = np.delete(e_photo, invalid)
-
             # create a list
-            self.source_ids.append(id)
             self.bands.append(band)
             self.photometry.append(photo)
             self.e_photometry.append(e_photo)            
