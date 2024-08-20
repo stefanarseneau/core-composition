@@ -168,49 +168,64 @@ def fetch_photometry(source_ids):
     return panstarrs_photometry
 
 class Photometry:
-    def __init__(self, source_ids, geometry, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses):
+    def __init__(self, source_ids, geometry, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses, bsq = None):
         panstarrs = fetch_photometry(source_ids)
 
-        self.photo = {}
+        self.geometry = geometry
+        self.source_ids = []
+        self.bands = []
+        self.photometry = []
+        self.e_photometry = []
+        self.astrometric_params_solved = astrometric_params_solved
+        self.initial_guess = initial_guesses
+        
         for ii, id in enumerate(source_ids):
             ix = np.where(panstarrs['source_id'] == id)[0]
-            bands = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
+            band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
             photo = np.array(gaia_photo[ii])
             e_photo = np.array(e_gaia_photo[ii])
 
-            photo[0] = correct_gband(photo[1], photo[2], astrometric_params_solved[ii], photo[0])
+            photo[0] = correct_gband(photo[1], photo[2], self.astrometric_params_solved[ii], photo[0])
         
-            bands = np.append(bands, np.array(['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']))
+            band = np.append(band, np.array(['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']))
             photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
             e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], panstarrs['e_PS1_r'][ix], panstarrs['e_PS1_i'][ix], panstarrs['e_PS1_z'][ix], panstarrs['e_PS1_y'][ix]]))
 
-            self.photo[id] = [geometry[ii], astrometric_params_solved[ii], bands, photo, e_photo, initial_guesses[ii]]
+            if bsq is not None:
+                photo = deredden(bsq, self.geometry[ii], photo, band)
+
+            # create a list
+            self.source_ids.append(id)
+            self.bands.append(band)
+            self.photometry.append(photo)
+            self.e_photometry.append(e_photo)            
 
         self.check_valid()
 
     def check_valid(self):
-        for key in self.photo.keys():
+        for ii in range(len(self.source_ids)):
             # find and delete invalid PanSTARRS photometry
-            invalid = np.where(self.photo[key][3] == -999)
-            for i in range(3):
-                self.photo[key][i+2] = np.delete(self.photo[key][i+2], invalid)
+            invalid = np.where(self.photometry[ii] == -999)
 
-    def deredden(self, bsq):
-        for ii, id in tqdm(enumerate(self.photo.keys())):
-            photo_corrected = deredden(bsq, self.photo[id][0], self.photo[id][3], self.photo[id][2])
-            self.photo[id][3] = photo_corrected
+            self.bands[ii] = np.delete(self.bands[ii], invalid)
+            self.photometry[ii] = np.delete(self.photometry[ii], invalid)
+            self.e_photometry[ii] = np.delete(self.e_photometry[ii], invalid)
 
     def run_mcmc(self, interpolator, **kwargs):
         chains = {}
-        for id in tqdm(self.photo.keys()):
-            interp = interpolator(self.photo[id][2], **kwargs)
+        for ii, id in tqdm(enumerate(self.source_ids)):
+            interp = interpolator(self.bands[ii], **kwargs)
             engine = MCMCEngine(interp)
 
-            chain = engine.run_mcmc(self.photo[id][3], self.photo[id][4], self.photo[id][0].distance.value, self.photo[id][5])
+            chain = engine.run_mcmc(self.photometry[ii], self.e_photometry[ii], self.geometry[ii].distance.value, self.initial_guess[ii])
             chains[id] = chain
         return chains
 
     def write(self, path):
+        photo = {}
+        for ii, id in enumerate(self.source_ids):
+            photo[id] = [self.geometry[ii], self.astrometric_params_solved[ii], self.bands[ii], self.photo[ii], self.e_photo[ii], self.initial_guesses[ii]]
+
         with open(path, 'wb') as f:
             pickle.dump(self.photo, f)
 

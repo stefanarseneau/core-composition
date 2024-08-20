@@ -38,13 +38,11 @@ def plot(obs_mag, e_obs_mag, distance, radius, teff, logg, Engine):
 
 
 def deredden(bsq, coords, photo, bands):
-    # create the coordinates to query against
-    table = Table()
-    table['coords'] = coords
-    
     # perform the query
-    bsq_res = bsq.query(table['coords']).copy()
-    bsq_res[np.isnan(bsq_res)] = 0
+    bsq_res = bsq.query(coords).copy()
+    print(bsq_res, type(bsq_res))
+    if np.isnan(bsq_res):
+        bsq_res = 0
 
     # Convert to actual units
     Ebv = bsq_res*0.901*0.98
@@ -60,12 +58,8 @@ def deredden(bsq, coords, photo, bands):
     phot_wavl = np.array([x.lpivot.to('angstrom').value for x in phot])
 
     # For each point, find extinction using the parameters we defined above
-    ext_all = []
-    for av0 in A_v0:
-        ext_all.append( extinction.fitzpatrick99(phot_wavl, av0, Rv) )
-    ext_all = np.array(ext_all)
-
-    photo_corrected = np.array([photo[:,i] - ext for i, ext in enumerate(ext_all.T)])
+    ext_all = extinction.fitzpatrick99(phot_wavl, av0, Rv)
+    photo_corrected = np.array(photo) - ext_all
     return photo_corrected
 
 def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
