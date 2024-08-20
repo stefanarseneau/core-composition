@@ -179,20 +179,29 @@ class Photometry:
         self.astrometric_params_solved = astrometric_params_solved
         self.initial_guess = initial_guesses
         
-        for ii, id in enumerate(source_ids):
+        for ii, id in tqdm(enumerate(source_ids)):
             ix = np.where(panstarrs['source_id'] == id)[0]
             band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
             photo = np.array(gaia_photo[ii])
             e_photo = np.array(e_gaia_photo[ii])
 
+            # correct for g-band magnitude
             photo[0] = correct_gband(photo[1], photo[2], self.astrometric_params_solved[ii], photo[0])
         
+            # add the extra photometry
             band = np.append(band, np.array(['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']))
             photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
             e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], panstarrs['e_PS1_r'][ix], panstarrs['e_PS1_i'][ix], panstarrs['e_PS1_z'][ix], panstarrs['e_PS1_y'][ix]]))
 
+            # optionally deredden
             if bsq is not None:
                 photo = deredden(bsq, self.geometry[ii], photo, band)
+
+            # check valid photometry
+            invalid = np.where(photo == -999)
+            band[ii] = np.delete(band, invalid)
+            photo[ii] = np.delete(photo, invalid)
+            e_photo[ii] = np.delete(e_photo, invalid)
 
             # create a list
             self.source_ids.append(id)
@@ -200,20 +209,9 @@ class Photometry:
             self.photometry.append(photo)
             self.e_photometry.append(e_photo)            
 
-        self.check_valid()
-
-    def check_valid(self):
-        for ii in range(len(self.source_ids)):
-            # find and delete invalid PanSTARRS photometry
-            invalid = np.where(self.photometry[ii] == -999)
-
-            self.bands[ii] = np.delete(self.bands[ii], invalid)
-            self.photometry[ii] = np.delete(self.photometry[ii], invalid)
-            self.e_photometry[ii] = np.delete(self.e_photometry[ii], invalid)
-
     def run_mcmc(self, interpolator, **kwargs):
         chains = {}
-        for ii, id in tqdm(enumerate(self.source_ids)):
+        for ii in tqdm(range(len(self.source_ids))):
             interp = interpolator(self.bands[ii], **kwargs)
             engine = MCMCEngine(interp)
 

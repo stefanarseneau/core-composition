@@ -40,7 +40,6 @@ def plot(obs_mag, e_obs_mag, distance, radius, teff, logg, Engine):
 def deredden(bsq, coords, photo, bands):
     # perform the query
     bsq_res = bsq.query(coords).copy()
-    print(bsq_res, type(bsq_res))
     if np.isnan(bsq_res):
         bsq_res = 0
 
@@ -58,7 +57,7 @@ def deredden(bsq, coords, photo, bands):
     phot_wavl = np.array([x.lpivot.to('angstrom').value for x in phot])
 
     # For each point, find extinction using the parameters we defined above
-    ext_all = extinction.fitzpatrick99(phot_wavl, av0, Rv)
+    ext_all = extinction.fitzpatrick99(phot_wavl, A_v0, Rv)
     photo_corrected = np.array(photo) - ext_all
     return photo_corrected
 
