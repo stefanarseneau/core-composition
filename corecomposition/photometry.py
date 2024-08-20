@@ -171,16 +171,17 @@ class Photometry:
     def __init__(self, source_ids, geometry, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses, bsq = None):
         panstarrs = fetch_photometry(source_ids)
 
-        self.geometry = geometry
         self.source_ids = source_ids
+        self.geometry = geometry
+        self.astrometric_params_solved = astrometric_params_solved
+        self.initial_guess = initial_guesses
+
         self.bands = []
         self.photometry = []
         self.e_photometry = []
-        self.astrometric_params_solved = astrometric_params_solved
-        self.initial_guess = initial_guesses
         
-        for ii, id in tqdm(range(len(self.source_ids))):
-            ix = np.where(panstarrs['source_id'] == id)[0]
+        for ii in tqdm(range(len(self.source_ids))):
+            ix = np.where(panstarrs['source_id'] == self.source_ids[ii])[0]
             band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
             photo = np.array(gaia_photo[ii])
             e_photo = np.array(e_gaia_photo[ii])
@@ -215,7 +216,7 @@ class Photometry:
             engine = MCMCEngine(interp)
 
             chain = engine.run_mcmc(self.photometry[ii], self.e_photometry[ii], self.geometry[ii].distance.value, self.initial_guess[ii])
-            chains[id] = chain
+            chains[self.source_ids[ii]] = chain
         return chains
 
     def write(self, path):
