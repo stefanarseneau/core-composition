@@ -1,13 +1,7 @@
 ## Core Compositions
 
-The objective of this project is to measure the core compositions of white dwarfs. The catalog of this project can be built using the following command:
-```
-python -m corecomposition build [BASE CATALOG] [CONFIG FILE] [SAVE FILE]
-```
-and the analysis can be performed with the command
-```
-python -m corecomposition analyze [TARGET FILE] [CONFIG FILE] [SAVE FILE] --obspath=[OBSERVATION PATH]
-```
+The objective of this project is to measure the core compositions of white dwarfs. The relevant files 
+
 
 ---
 

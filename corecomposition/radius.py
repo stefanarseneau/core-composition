@@ -6,7 +6,7 @@ import argparse
 
 from astropy.table import Table
 from dustmaps.edenhofer2023 import Edenhofer2023Query
-import wdphoto
+from . import interpolator
 
 def measure_radius(catalog, params, deredden = False, plot_radii = False):
     # load in the necessary parameters
@@ -22,7 +22,7 @@ def measure_radius(catalog, params, deredden = False, plot_radii = False):
         b = catalog['wd_b']
 
         bsq = Edenhofer2023Query() # initiate Edenhofer query
-        obs_mag = wdphoto.deredden(bsq, l, b, obs_mag, distances, bands) # perform query
+        obs_mag = interpolator.deredden(bsq, l, b, obs_mag, distances, bands) # perform query
         del bsq # delete this to save memory
 
     table = Table()
@@ -31,15 +31,15 @@ def measure_radius(catalog, params, deredden = False, plot_radii = False):
 
 
     # create interpolators and photometric engines
-    warwick = wdphoto.WarwickDAInterpolator(bands)
-    co_hrich_model = wdphoto.LaPlataUltramassive(bands, core = 'CO', layer = 'Hrich')
-    one_hrich_model = wdphoto.LaPlataUltramassive(bands, core = 'ONe', layer = 'Hrich')
-    co_hdef_model = wdphoto.LaPlataUltramassive(bands, core = 'CO', layer = 'Hdef')
-    one_hdef_model = wdphoto.LaPlataUltramassive(bands, core = 'ONe', layer = 'Hdef')
+    warwick = interpolator.WarwickDAInterpolator(bands)
+    co_hrich_model = interpolator.LaPlataUltramassive(bands, core = 'CO', layer = 'Hrich')
+    one_hrich_model = interpolator.LaPlataUltramassive(bands, core = 'ONe', layer = 'Hrich')
+    co_hdef_model = interpolator.LaPlataUltramassive(bands, core = 'CO', layer = 'Hdef')
+    one_hdef_model = interpolator.LaPlataUltramassive(bands, core = 'ONe', layer = 'Hdef')
 
     interpolators = {'Warwick': (warwick, 8), 'CO_Hrich': (co_hrich_model, 9), 'ONe_Hrich': (one_hrich_model, 9),
                      'CO_Hdef': (co_hdef_model, 9), 'ONe_Hdef': (one_hdef_model, 9)}
-    engines = {key : (wdphoto.CoarseEngine(interpolators[key][0]), interpolators[key][1]) for key in interpolators.keys()}
+    engines = {key : (interpolator.CoarseEngine(interpolators[key][0]), interpolators[key][1]) for key in interpolators.keys()}
 
     outs = np.nan*np.zeros((len(engines), len(table), 7))
     for i in tqdm(range(len(obs_mag))):
@@ -48,7 +48,7 @@ def measure_radius(catalog, params, deredden = False, plot_radii = False):
             outs[j,i] = np.array([radius, e_radius, teff, e_teff, logg, e_logg, result.redchi])
 
             if plot_radii:
-                model = wdphoto.utils.plot(obs_mag[i], e_obs_mag[i], distances[i], outs[j,i,0], outs[j,i,2], engines[key][1], key)
+                model = interpolator.utils.plot(obs_mag[i], e_obs_mag[i], distances[i], outs[j,i,0], outs[j,i,2], engines[key][1], key)
                 plt.legend()
                 plt.title(f'Gaia DR3 {source_ids[i]} {key} Model')
                 model.savefig(f'/mnt/d/arsen/research/proj/core-composition/figures/{key}/{source_ids[i]}.png')

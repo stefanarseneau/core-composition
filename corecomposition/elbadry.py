@@ -10,8 +10,6 @@ from astropy.table import Table, vstack, join
 from astroquery.gaia import Gaia
 import WD_models
 
-plt.style.use('/mnt/d/arsen/research/proj/core-composition/stefan.mplstyle')
-
 def wd_separator(bp_rp):
     # the line that El-Badry use to define WDs
     return 3.25*bp_rp + 9.625

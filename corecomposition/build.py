@@ -6,12 +6,9 @@ import configparser
 import argparse
 
 import sys
-sys.path.append('../')
-import WD_models
 import spectromancer as sp
 import corv
 
-from wdphoto.utils import plot
 from .elbadry import build_catalog
 from .radius import measure_radius
 
