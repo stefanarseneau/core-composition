@@ -5,10 +5,11 @@ import configparser
 import argparse
 
 import sys
-sys.path.append('/mnt/d/arsen/research/proj/')
+sys.path.append('/mnt/d/arsen/research/proj')
+import WD_models
+
 from astropy.table import Table, vstack, join
 from astroquery.gaia import Gaia
-import WD_models
 
 def wd_separator(bp_rp):
     # the line that El-Badry use to define WDs
@@ -104,21 +105,24 @@ def get_msrv(catalog, params):
     catalog = join(catalog, gaia_d1, keys = 'ms_source_id')
     return catalog
             
-def initial_mass_threshold(catalog, params):
-    # define units that will be useful later
-    radius_sun = 6.957e8
-    mass_sun = 1.9884e30
+def radius_from_cmd(catalog, params):
     newton_G = 6.674e-11
+    mass_sun = 1.9884e30
+    radius_sun = 6.957e8
 
-    # create the ONe model from WD_models and interpolate from bp-rp and G
-    model = WD_models.load_model('ft', 'ft', 'ft', atm_type = 'H', HR_bands = ['bp3-rp3', 'G3'])
-    
-    # interpolate the column to WD_mass using the ONe model
-    catalog['wd_mass'] = model['HR_to_mass'](catalog['wd_bp_rp'], catalog['wd_m_g'])
-    catalog = catalog[~np.isnan(catalog['wd_mass'])] # get rid of anything that can't interpolate
+    model = WD_models.load_model(low_mass_model='Bedard2020',
+                                middle_mass_model='Bedard2020',
+                                high_mass_model='ONe',
+                                atm_type='H',
+                                HR_bands=('bp3-rp3', 'G3'))
 
-    # return all the targets with interpolated masses above the cutoff
-    return catalog, catalog[catalog['wd_mass'] > float(params['cutoff_mass'])]
+    bp3_rp3 = catalog['wd_phot_bp_mean_mag'] - catalog['wd_phot_rp_mean_mag']
+    G3 = catalog['wd_m_g']
+    logg = model['HR_to_logg'](bp3_rp3, G3)
+    mass = model['HR_to_mass'](bp3_rp3, G3)
+
+    catalog['cmd_radius'] = np.sqrt((newton_G * mass * mass_sun) / (10**logg/100)) / radius_sun
+    return catalog[catalog['cmd_radius'] < float(params['cutoff_radius'])]
 
 def build_catalog(params, catalog):
     catalog = catalog[catalog['wd_parallax_over_error'] > float(params['parallax_over_error'])]
@@ -137,12 +141,13 @@ def build_catalog(params, catalog):
     mask = np.all([catalog['wd_ruwe'] < float(params['ruwe']), catalog['ms_ruwe'] < float(params['ruwe']),
                    catalog['wd_phot_bp_rp_excess_factor'] < float(params['bp_rp_excess']),
                    catalog['ms_phot_bp_rp_excess_factor'] < float(params['bp_rp_excess'])], axis=0)
-    highmass = catalog[mask]
+    smallcatalog = catalog[mask].copy()
 
-    print(f'Found {len(highmass):d} WD+MS Wide Binaries')
+    print(f'Found {len(smallcatalog):d} WD+MS Wide Binaries')
 
-    #print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
+    highmass = radius_from_cmd(smallcatalog, params)
+    print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
 
-    return catalog, highmass
+    return highmass
 
     
