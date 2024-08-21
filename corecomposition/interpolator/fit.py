@@ -16,6 +16,7 @@ mass_sun = 1.9884e30 #kg
 newton_G = 6.674e-11 #N m^2/kg^2
 pc_to_m = 3.086775e16
 
+
 class CoarseEngine:
     def __init__(self, interpolator, assume_mrr = False, vary_logg = False):
         self.interpolator = interpolator
@@ -40,11 +41,11 @@ class CoarseEngine:
             flux in flam if e_mag is not specified, a tuple containing flux and flux uncertainty if it is
         """
         if e_mag is not None:
-            flux = [10**(-0.4*(mag[i] + filter.Vega_zero_mag)) for i, filter in enumerate(self.filters)]
-            e_flux = [np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + filter.Vega_zero_mag)) * e_mag[i])) for i, filter in enumerate(self.filters)]
+            flux = [10**(-0.4*(mag[i] + filter.AB_zero_mag)) for i, filter in enumerate(self.filters)]
+            e_flux = [np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + filter.AB_zero_mag)) * e_mag[i])) for i, filter in enumerate(self.filters)]
             return flux, e_flux
         else:
-            flux = [10**(-0.4*(mag[i] + filter.Vega_zero_mag)) for i, filter in enumerate(self.filters)]
+            flux = [10**(-0.4*(mag[i] + filter.AB_zero_mag)) for i, filter in enumerate(self.filters)]
             return flux
 
     def get_model_flux(self, params):
@@ -126,11 +127,11 @@ class MCMCEngine():
             flux in flam if e_mag is not specified, a tuple containing flux and flux uncertainty if it is
         """
         if e_mag is not None:
-            flux = np.array([10**(-0.4*(mag[i] + filter.Vega_zero_mag)) for i, filter in enumerate(self.filters)])
-            e_flux = np.array([np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + filter.Vega_zero_mag)) * e_mag[i])) for i, filter in enumerate(self.filters)])
+            flux = np.array([10**(-0.4*(mag[i] + filter.AB_zero_mag)) for i, filter in enumerate(self.filters)])
+            e_flux = np.array([np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + filter.AB_zero_mag)) * e_mag[i])) for i, filter in enumerate(self.filters)])
             return flux, e_flux
         else:
-            flux = np.array([10**(-0.4*(mag[i] + filter.Vega_zero_mag)) for i, filter in enumerate(self.filters)])
+            flux = np.array([10**(-0.4*(mag[i] + filter.AB_zero_mag)) for i, filter in enumerate(self.filters)])
             return flux
 
     def get_model_flux(self, params):

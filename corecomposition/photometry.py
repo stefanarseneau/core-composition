@@ -8,6 +8,12 @@ import pickle
 from .interpolator import MCMCEngine, WarwickDAInterpolator, LaPlataUltramassive, LaPlataBase
 from .interpolator.utils import deredden
 
+def gaia_to_ab(photo):
+    bands = ['Gaia_G', 'Gaia_BP', 'Gaia_RP']
+    flux = np.array([10**(-0.4*(photo[i] + lib[band].Vega_zero_mag)) for i, band in enumerate(bands)])
+    ab_mag = np.array([-2.5 * np.log10(flux[i]) - lib[band].AB_zero_mag for i, band in enumerate(bands)])
+    return ab_mag
+
 def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
     """
     Correct the G-band fluxes and magnitudes for the input list of Gaia EDR3 data.
@@ -184,6 +190,7 @@ class Photometry:
             ix = np.where(panstarrs['source_id'] == self.source_ids[ii])[0]
             band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
             photo = np.array(gaia_photo[ii])
+            photo = gaia_to_ab(photo)
             e_photo = np.array(e_gaia_photo[ii])
 
             # correct for g-band magnitude
@@ -191,8 +198,16 @@ class Photometry:
         
             # add the extra photometry
             band = np.append(band, np.array(['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']))
-            photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], panstarrs['PS1_r'][ix], panstarrs['PS1_i'][ix], panstarrs['PS1_z'][ix], panstarrs['PS1_y'][ix]]))
-            e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], panstarrs['e_PS1_r'][ix], panstarrs['e_PS1_i'][ix], panstarrs['e_PS1_z'][ix], panstarrs['e_PS1_y'][ix]]))
+            photo = np.append(photo, np.array([panstarrs['PS1_g'][ix], 
+                                        panstarrs['PS1_r'][ix], 
+                                        panstarrs['PS1_i'][ix], 
+                                        panstarrs['PS1_z'][ix], 
+                                        panstarrs['PS1_y'][ix]]))
+            e_photo = np.append(e_photo, np.array([panstarrs['e_PS1_g'][ix], 
+                                        panstarrs['e_PS1_r'][ix], 
+                                        panstarrs['e_PS1_i'][ix], 
+                                        panstarrs['e_PS1_z'][ix], 
+                                        panstarrs['e_PS1_y'][ix]]))
 
             # check valid photometry
             invalid = np.where(photo < -50)
