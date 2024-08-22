@@ -127,19 +127,19 @@ class MCMCEngine():
             flux in flam if e_mag is not specified, a tuple containing flux and flux uncertainty if it is
         """
         if e_mag is not None:
-            flux = np.array([10**(-0.4*(mag[i] + filter.AB_zero_mag)) for i, filter in enumerate(self.filters)])
-            e_flux = np.array([np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + filter.AB_zero_mag)) * e_mag[i])) for i, filter in enumerate(self.filters)])
+            flux = np.array([10**(-0.4*(mag[i] + filter.Vega_zero_mag)) for i, filter in enumerate(self.filters)])
+            e_flux = np.array([np.abs((np.log(10)*(-0.4)*10**(-0.4 * (mag[i] + filter.Vega_zero_mag)) * e_mag[i])) for i, filter in enumerate(self.filters)])
             return flux, e_flux
         else:
-            flux = np.array([10**(-0.4*(mag[i] + filter.AB_zero_mag)) for i, filter in enumerate(self.filters)])
+            flux = np.array([10**(-0.4*(mag[i] + filter.Vega_zero_mag)) for i, filter in enumerate(self.filters)])
             return flux
 
-    def get_model_flux(self, params):
+    def get_model_flux(self, params, distance = 100):
         #get model photometric flux for a WD with a given radius, located a given distance away        
-        fl= 4 * np.pi * self.interpolator(params[0], 9) # flux in physical units
+        fl = 4 * np.pi * self.interpolator(params[0], 9) # flux in physical units
         #convert to SI units
         radius = params[1] * radius_sun # Rsun to meter
-        distance = self.distance * pc_to_m # Parsec to meter
+        distance *= pc_to_m # Parsec to meter
         return (radius / distance)**2 * fl # scale down flux by distance
 
     def log_prob(self, params):
@@ -151,7 +151,7 @@ class MCMCEngine():
             log probability of the set of parameters
         """
         def log_likelihood(params):
-            flux_model =  self.get_model_flux(params) # compute model fluxes
+            flux_model =  self.get_model_flux(params, distance = self.distance) # compute model fluxes
             return np.sum(-0.5*np.square(((self.fluxes - flux_model) / self.e_fluxes)) - np.log(np.sqrt(2*np.pi) * self.e_fluxes)) # convert to log likelihood
         
         def log_prior(params):
@@ -179,6 +179,7 @@ class MCMCEngine():
         """
         self.distance = distance
         self.fluxes, self.e_fluxes = self.mag_to_flux(mags, e_mags)
+        print(self.fluxes)
 
         # first, run 2500 steps of MCMC to understand how much we actually need to run
         nsteps = 2500

@@ -9,12 +9,39 @@ import pyphot
 from .interpolator import MCMCEngine, WarwickDAInterpolator, LaPlataUltramassive, LaPlataBase
 from .interpolator.utils import deredden
 
-def gaia_to_ab(photo):
-    bands = ['Gaia_G', 'Gaia_BP', 'Gaia_RP']
+def gaia_to_ab(photo, gaia_flux, e_gaia_flux):
+    mags = photo
+    e_mags = np.array([gaia_flux[i] / (1.09 * e_gaia_flux[i]) for i in range(len(gaia_flux))])
+    return mags, e_mags
+
+def panstarrs_to_vega(photo, e_photo):
+    # AB zero fluxes in W m^-2 Hz^-1 (10^26 Jy)
+    pstarr_0 = [3631e-26]*5
+    pivot = [4849.117, 6201.186, 7534.956, 8674.179, 9627.741] # grizy
+    bands = ['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y']
+    
     lib = pyphot.get_library()
-    flux = np.array([10**(-0.4*(photo[i] + lib[band].Vega_zero_mag)) for i, band in enumerate(bands)])
-    ab_mag = np.array([-2.5 * np.log10(flux[i]) - lib[band].AB_zero_mag for i, band in enumerate(bands)])
-    return ab_mag
+    filters = [lib[band] for band in bands]
+    
+    # convert reported mags to fluxes in W m^-2 Hz^-1
+    calibrated_flux = [(pstarr_0[i]*np.power(10, photo[i]/-2.5)) 
+                            if (photo[i] != -999) else -999 for i in range(len(pstarr_0))]
+    e_calibrated_flux = [calibrated_flux[i] * e_photo[i] 
+                            if photo[i] != -999 else -999 for i in range(len(pstarr_0))]
+
+    # converts from W m^-2 Hz^-1 to flam using pyphot's pivots
+    flam = [(2.99792458e21 * calibrated_flux[i] / pivot[i]**2) 
+                if (photo[i] != -999) else -999 for i in range(len(calibrated_flux))]
+    e_flam = [(2.99792458e21 * e_calibrated_flux[i] / pivot[i]**2) 
+                if (photo[i] != -999) else -999 for i in range(len(e_calibrated_flux))]  
+
+    # converts to mag
+    mags = np.array([(-2.5 * np.log10(flam[i]) - filters[i].Vega_zero_mag) 
+                if (photo[i] != -999) else -999 for i in range(len(flam))])
+    e_mags = np.array([(e_flam[i] /(1.09 * flam[i])) 
+                if (photo[i] != -999) else -999 for i in range(len(flam))])
+    return mags, e_mags 
+
 
 def correct_gband(bp, rp, astrometric_params_solved, phot_g_mean_mag):
     """
@@ -172,8 +199,28 @@ def fetch_photometry(source_ids):
 
     if des_photometry is not None:
         photometry = vstack([des_photometry, panstarrs_photometry])
-        return photometry
-    return panstarrs_photometry
+    else:
+        photometry = panstarrs_photometry.copy()
+
+    ### Convert PanSTARRS photo to Vega
+    for row in photometry:
+        photo = np.array([row['PS1_g'], row['PS1_r'], row['PS1_i'], row['PS1_z'], row['PS1_y']])
+        e_photo = np.array([row['e_PS1_g'], row['e_PS1_r'], row['e_PS1_i'], row['e_PS1_z'], row['e_PS1_y']])
+        vega, e_vega = panstarrs_to_vega(photo, e_photo)
+
+        row['PS1_g'] = vega[0]
+        row['PS1_r'] = vega[1]
+        row['PS1_i'] = vega[2]
+        row['PS1_z'] = vega[3]
+        row['PS1_y'] = vega[4]
+
+        row['e_PS1_g'] = e_vega[0]
+        row['e_PS1_r'] = e_vega[1]
+        row['e_PS1_i'] = e_vega[2]
+        row['e_PS1_z'] = e_vega[3]
+        row['e_PS1_y'] = e_vega[4]
+
+    return photometry
 
 class Photometry:
     def __init__(self, source_ids, geometry, astrometric_params_solved, gaia_photo, e_gaia_photo, initial_guesses, bsq = None):
@@ -191,9 +238,8 @@ class Photometry:
         for ii in tqdm(range(len(self.source_ids))):
             ix = np.where(panstarrs['source_id'] == self.source_ids[ii])[0]
             band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
-            photo = np.array(gaia_photo[ii])
-            photo = gaia_to_ab(photo)
-            e_photo = np.array(e_gaia_photo[ii])
+            photo = gaia_photo[ii]
+            e_photo = e_gaia_photo[ii]
 
             # correct for g-band magnitude
             photo[0] = correct_gband(photo[1], photo[2], self.astrometric_params_solved[ii], photo[0])
