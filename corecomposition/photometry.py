@@ -23,8 +23,8 @@ def panstarrs_to_vega(photo, e_photo):
     lib = pyphot.get_library()
     filters = [lib[band] for band in bands]
     
-    # convert reported mags to fluxes in W m^-2 Hz^-1
-    calibrated_flux = [(pstarr_0[i]*np.power(10, photo[i]/-2.5)) 
+    # convert reported mags to fluxes in 1e-3 erg s^-1 cm^-2 Hz^-1 = W m^2 Hz^-1
+    calibrated_flux = [(np.power(10, (photo[i] + 48.6)/-2.5) * 1e-3) 
                             if (photo[i] != -999) else -999 for i in range(len(pstarr_0))]
     e_calibrated_flux = [calibrated_flux[i] * e_photo[i] 
                             if photo[i] != -999 else -999 for i in range(len(pstarr_0))]
