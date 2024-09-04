@@ -154,7 +154,7 @@ def build_warwick_da(path = '/data/warwick_da', outpath = None, flux_unit = 'fla
     for ii in range(len(lines)):        
         if 'Effective temperature' in lines[ii]: # iterate over lines until the first line with actual data is found
             # create an array of all the data up until that line to create the base wavelength grid
-            base_wavl = np.array(re.split('\s+', ''.join(lines[1:ii])))[1:].astype(float) 
+            base_wavl = np.array(re.split('\s+', ''.join(lines[1:ii])))[1:].astype(float)
             break
 
     # instantiate holder objects
@@ -197,7 +197,7 @@ def build_warwick_da(path = '/data/warwick_da', outpath = None, flux_unit = 'fla
     table['logg'] = np.array(dat, dtype=object).T[0]
     table['teff'] = np.array(dat, dtype=object).T[1] 
     table['fl'] = np.array(dat, dtype=object).T[2]   
-    table['wl'] = air2vac(np.array(dat, dtype=object).T[3]) # convert air wavelengths to vacuum
+    table['wl'] = np.array(dat, dtype=object).T[3] # convert air wavelengths to vacuum
     
     if flux_unit == 'flam': # convert to flam if desired
         table['fl'] = (2.99792458e18*table['fl'] / table['wl']**2)
