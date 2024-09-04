@@ -23,6 +23,7 @@ def panstarrs_to_vega(photo, e_photo):
     lib = pyphot.get_library()
     filters = [lib[band] for band in bands]
     
+    # https://iopscience.iop.org/article/10.1088/0004-637X/750/2/99/pdf
     # convert reported mags to fluxes in 1e-3 erg s^-1 cm^-2 Hz^-1 = W m^2 Hz^-1
     calibrated_flux = [(np.power(10, (photo[i] + 48.6)/-2.5) * 1e-3) 
                             if (photo[i] != -999) else -999 for i in range(len(pstarr_0))]
@@ -153,12 +154,11 @@ def des_photo(source_ids, convert = False):
 def panstarrs_photo(source_ids):
     # first use the Gaia table to xmatch against panstarrs
     gaia_tap_service = vo.dal.TAPService("https://gea.esac.esa.int/tap-server/tap")
-    gaia_query = """
-        SELECT
-        gs.source_id, gs.original_ext_source_id
+    gaia_query = f"""
+        SELECT gs.source_id, gs.original_ext_source_id
         FROM gaiadr3.panstarrs1_best_neighbour as gs
-        WHERE gs.source_id in {}
-        """.format(tuple(source_ids))
+        WHERE gs.source_id in {tuple(source_ids)}
+        """
     gaia_result = gaia_tap_service.search(gaia_query).to_table()
 
     # then use the panstarrs ids to get the panstarrs data
