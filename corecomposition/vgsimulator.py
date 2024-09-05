@@ -57,7 +57,7 @@ def simulate(wl, n_sims, snr_grid, R, teff, distance):
 
     for ii, snr in enumerate(tqdm(snr_grid)):
         for jj in range(n_sims):
-            radius = np.random.uniform(low = 0.0045, high = 0.0060)
+            radius = np.random.uniform(low = 0.004, high = 0.0065)
             rv = np.random.uniform(low = -50, high = 50)
 
             wl_fetched, fl, ivar = simulate_spec(wl, (teff, radius), distance, rv, snr, R = R)
