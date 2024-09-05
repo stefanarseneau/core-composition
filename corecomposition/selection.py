@@ -7,7 +7,10 @@ import argparse
 import sys
 sys.path.append('/mnt/d/arsen/research/proj')
 import WD_models
+from .interpolator import utils
 
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 from astropy.table import Table, vstack, join
 from astroquery.gaia import Gaia
 
@@ -116,15 +119,32 @@ def radius_from_cmd(catalog, params):
                                 atm_type='H',
                                 HR_bands=('bp3-rp3', 'G3'))
 
-    bp3_rp3 = catalog['wd_phot_bp_mean_mag'] - catalog['wd_phot_rp_mean_mag']
-    G3 = catalog['wd_m_g']
+    bp3_rp3 = catalog['bpmag_dereddened'] - catalog['rpmag_dereddened']
+    G3 = catalog['gmag_dereddened'] + 5 * (np.log10(catalog['r_med_geo'] / 100))
     logg = model['HR_to_logg'](bp3_rp3, G3)
     mass = model['HR_to_mass'](bp3_rp3, G3)
 
     catalog['cmd_radius'] = np.sqrt((newton_G * mass * mass_sun) / (10**logg/100)) / radius_sun
     return catalog[catalog['cmd_radius'] < float(params['cutoff_radius'])]
 
-def build_catalog(params, catalog):
+def deredden_gaia(catalog, bsq):
+    geometry = [SkyCoord(frame="galactic", l=catalog['wd_l'][i]*u.deg, b=catalog['wd_b'][i]*u.deg, distance = catalog['r_med_geo'][i] * u.pc) for i in range(len(catalog))] 
+    photo = np.array([catalog['wd_phot_g_mean_mag'], catalog['wd_phot_bp_mean_mag'], catalog['wd_phot_rp_mean_mag']]).T # the basic Gaia photometry
+    bands = ['Gaia_G', 'Gaia_BP', 'Gaia_RP']
+
+    photo_dereddened = np.array([])
+    for i in range(len(geometry)):
+        result = utils.deredden(bsq, geometry, photo, bands)
+        photo_dereddened = np.append(photo_dereddened, result)
+
+    print(photo_dereddened)
+    catalog['gmag_dereddened'] = photo_dereddened[:,0]
+    catalog['bpmag_dereddened'] = photo_dereddened[:,1]
+    catalog['rpmag_dereddened'] = photo_dereddened[:,2]
+    return catalog
+    
+
+def build_catalog(params, catalog, bsq = None):
     catalog = catalog[catalog['wd_parallax_over_error'] > float(params['parallax_over_error'])]
 
     # query bailer-jones distances
@@ -136,6 +156,9 @@ def build_catalog(params, catalog):
     catalog['wd_m_g'] = catalog['wd_phot_g_mean_mag'] + 5 * (np.log10(catalog['wd_parallax'] / 100))
 
     catalog = make_physical_photometry(catalog)
+
+    if bsq is not None:
+        catalog = deredden_gaia(catalog, bsq)
 
     # filter out probable binaries according to specified cuts
     mask = np.all([catalog['wd_ruwe'] < float(params['ruwe']), catalog['ms_ruwe'] < float(params['ruwe']),

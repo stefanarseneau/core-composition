@@ -71,7 +71,7 @@ def simulate(wl, n_sims, snr_grid, R, teff, distance):
             radii.append(radius)
             rvs.append(rv)
             measured_rvs.append(measured_rv)
-            e_rvs.append(e_rv)
+            e_rvs.append(np.sqrt(e_rv**2 + (measured_rv - rv)**2))
 
     parameters = Table()
     parameters['snr'] = snrs
