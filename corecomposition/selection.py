@@ -120,7 +120,7 @@ def radius_from_cmd(catalog, params):
                                 HR_bands=('bp3-rp3', 'G3'))
 
     bp3_rp3 = catalog['bpmag_dereddened'] - catalog['rpmag_dereddened']
-    G3 = catalog['gmag_dereddened'] + 5 * (np.log10(catalog['r_med_geo'] / 100))
+    G3 = catalog['gmag_dereddened'] - 5 * np.log10(catalog['r_med_geo']) + 5
     logg = model['HR_to_logg'](bp3_rp3, G3)
     mass = model['HR_to_mass'](bp3_rp3, G3)
 
@@ -132,12 +132,12 @@ def deredden_gaia(catalog, bsq):
     photo = np.array([catalog['wd_phot_g_mean_mag'], catalog['wd_phot_bp_mean_mag'], catalog['wd_phot_rp_mean_mag']]).T # the basic Gaia photometry
     bands = ['Gaia_G', 'Gaia_BP', 'Gaia_RP']
 
-    photo_dereddened = np.array([])
-    for i in range(len(geometry)):
-        result = utils.deredden(bsq, geometry, photo, bands)
-        photo_dereddened = np.append(photo_dereddened, result)
+    photo_dereddened = []
+    for i in tqdm(range(len(geometry))):
+        result = utils.deredden(bsq, geometry[i], photo[i], bands)
+        photo_dereddened.append(result)
+    photo_dereddened = np.array(photo_dereddened)
 
-    print(photo_dereddened)
     catalog['gmag_dereddened'] = photo_dereddened[:,0]
     catalog['bpmag_dereddened'] = photo_dereddened[:,1]
     catalog['rpmag_dereddened'] = photo_dereddened[:,2]

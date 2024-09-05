@@ -51,11 +51,13 @@ def simulate(wl, n_sims, snr_grid, R, teff, distance):
     teffs = []
     dists = []
     radii = []
-    rvs = []
-    measured_rvs = []
-    e_rvs = []
+    delta_rv = []
 
     for ii, snr in enumerate(tqdm(snr_grid)):
+        rvs = []
+        measured_rvs = []
+        e_rvs = []
+
         for jj in range(n_sims):
             radius = np.random.uniform(low = 0.004, high = 0.0065)
             rv = np.random.uniform(low = -50, high = 50)
@@ -65,21 +67,27 @@ def simulate(wl, n_sims, snr_grid, R, teff, distance):
             measured_rv, e_rv, redchi, param_res = corv.fit.fit_corv(wl_fetched, fl, ivar, corvmodel)
             #corv.utils.lineplot(wl_fetched, fl, ivar, corvmodel, param_res.params, printparams = False, gap = 0.3, figsize = (6, 5))
 
-            snrs.append(snr)
-            teffs.append(teff)
-            dists.append(distance)
-            radii.append(radius)
             rvs.append(rv)
+            e_rvs.append(e_rv)
             measured_rvs.append(measured_rv)
-            e_rvs.append(np.sqrt(e_rv**2 + (measured_rv - rv)**2))
+
+        snrs.append(snr)
+        teffs.append(teff)
+        dists.append(distance)
+        radii.append(radius)
+        rvs = np.array(rvs)
+        e_rvs = np.array(e_rvs)
+        measured_rvs = np.array(measured_rvs)
+
+        delta_rv.append(np.sqrt(np.mean(e_rv)**2 + (np.mean(measured_rvs - rvs))**2))
 
     parameters = Table()
     parameters['snr'] = snrs
     parameters['teff'] = teffs
     parameters['distance'] = dists
-    parameters['radius'] = radii
-    parameters['rv'] = rvs
-    parameters['measured_rv'] = measured_rvs
-    parameters['measured_e_rv'] = e_rvs
+    #parameters['radius'] = radii
+    #parameters['rv'] = rvs
+    #parameters['measured_rv'] = measured_rvs
+    parameters['measured_e_rv'] = delta_rv
 
     return parameters
