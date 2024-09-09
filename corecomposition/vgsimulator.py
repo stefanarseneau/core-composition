@@ -63,7 +63,7 @@ def simulate(wl, n_sims, snr_grid, R, teff, distance):
             rv = np.random.uniform(low = -50, high = 50)
 
             wl_fetched, fl, ivar = simulate_spec(wl, (teff, radius), distance, rv, snr, R = R)
-            corvmodel = corv.models.make_balmer_model(nvoigt = 2, names = ['a','b'])
+            corvmodel = corv.models.make_warwick_da_model(names = ['a','b', 'g', 'd'])
             measured_rv, e_rv, redchi, param_res = corv.fit.fit_corv(wl_fetched, fl, ivar, corvmodel)
             #corv.utils.lineplot(wl_fetched, fl, ivar, corvmodel, param_res.params, printparams = False, gap = 0.3, figsize = (6, 5))
 
