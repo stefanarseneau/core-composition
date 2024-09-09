@@ -234,6 +234,7 @@ class Photometry:
         self.bands = []
         self.photometry = []
         self.e_photometry = []
+        self.ixs = []
         
         for ii in tqdm(range(len(self.source_ids))):
             ix = np.where(panstarrs['source_id'] == self.source_ids[ii])[0]
@@ -258,6 +259,9 @@ class Photometry:
                                         panstarrs['e_PS1_y'][ix]]))
 
             # check valid photometry
+            if len(ix) == 0:
+                band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
+
             invalid = np.where(photo < -50)
             band = np.delete(band, invalid)
             photo = np.delete(photo, invalid)
@@ -268,6 +272,7 @@ class Photometry:
                 photo = deredden(bsq, self.geometry[ii], photo, band)
 
             # create a list
+            self.ixs.append(ix)
             self.bands.append(band)
             self.photometry.append(photo)
             self.e_photometry.append(e_photo)            
