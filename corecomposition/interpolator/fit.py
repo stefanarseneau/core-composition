@@ -179,7 +179,6 @@ class MCMCEngine():
         """
         self.distance = distance
         self.fluxes, self.e_fluxes = self.mag_to_flux(mags, e_mags)
-        print(self.fluxes)
 
         # first, run 2500 steps of MCMC to understand how much we actually need to run
         nsteps = 2500
