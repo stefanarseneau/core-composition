@@ -19,7 +19,7 @@ def wd_separator(bp_rp):
     return 3.25*bp_rp + 9.625
 
 # split the catalog with standard prefixes
-def build_catalog(params, save_path):
+def build_the_catalog(params, save_path):
     # read in Kareem El-Badry's catalog
     print('Reading El-Badry+21 Chance Alignment Catalog...')
     catalog = Table.read('https://zenodo.org/records/4435257/files/all_columns_catalog.fits.gz')
@@ -145,16 +145,19 @@ def deredden_gaia(catalog, bsq):
     
 
 def build_catalog(params, catalog, bsq = None):
+    print(f'Initial catalog size: {len(catalog)}')
+
     catalog = catalog[catalog['wd_parallax_over_error'] > float(params['parallax_over_error'])]
+    print(f'no systems after parallax over error cut: {len(catalog)}')
 
     # query bailer-jones distances
     catalog = get_bailerjones(catalog)
     catalog = get_msrv(catalog, params)
+    print(f'no systems with MS RVs: {len(catalog)}')
 
     # compute useful absolute magnitude columns
     catalog['ms_m_g'] = catalog['ms_phot_g_mean_mag'] + 5 * (np.log10(catalog['ms_parallax'] / 100))
     catalog['wd_m_g'] = catalog['wd_phot_g_mean_mag'] + 5 * (np.log10(catalog['wd_parallax'] / 100))
-
     catalog = make_physical_photometry(catalog)
 
     if bsq is not None:
@@ -165,7 +168,6 @@ def build_catalog(params, catalog, bsq = None):
                    catalog['wd_phot_bp_rp_excess_factor'] < float(params['bp_rp_excess']),
                    catalog['ms_phot_bp_rp_excess_factor'] < float(params['bp_rp_excess'])], axis=0)
     smallcatalog = catalog[mask].copy()
-
     print(f'Found {len(smallcatalog):d} WD+MS Wide Binaries')
 
     highmass = radius_from_cmd(smallcatalog, params)

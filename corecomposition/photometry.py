@@ -1,4 +1,5 @@
 import pyvo as vo
+from pyvo import registry  # version >=1.4.1 
 from astropy.table import Table, join, vstack
 
 import numpy as np
@@ -24,23 +25,17 @@ def panstarrs_to_vega(photo, e_photo):
     filters = [lib[band] for band in bands]
     
     # https://iopscience.iop.org/article/10.1088/0004-637X/750/2/99/pdf
-    # convert reported mags to fluxes in 1e-3 erg s^-1 cm^-2 Hz^-1 = W m^2 Hz^-1
-    calibrated_flux = [(np.power(10, (photo[i] + 48.6)/-2.5) * 1e-3) 
+    # convert reported mags to fluxes in Jy
+    calibrated_flux = [(np.power(10, (photo[i] + 48.6)/-2.5) * 10**23) 
                             if (photo[i] != -999) else -999 for i in range(len(pstarr_0))]
     e_calibrated_flux = [calibrated_flux[i] * e_photo[i] 
-                            if photo[i] != -999 else -999 for i in range(len(pstarr_0))]
-
-    # converts from W m^-2 Hz^-1 to flam using pyphot's pivots
-    flam = [(2.99792458e21 * calibrated_flux[i] / pivot[i]**2) 
-                if (photo[i] != -999) else -999 for i in range(len(calibrated_flux))]
-    e_flam = [(2.99792458e21 * e_calibrated_flux[i] / pivot[i]**2) 
-                if (photo[i] != -999) else -999 for i in range(len(e_calibrated_flux))]  
+                            if photo[i] != -999 else -999 for i in range(len(pstarr_0))] 
 
     # converts to mag
-    mags = np.array([(-2.5 * np.log10(flam[i]) - filters[i].Vega_zero_mag) 
-                if (photo[i] != -999) else -999 for i in range(len(flam))])
-    e_mags = np.array([(e_flam[i] /(1.09 * flam[i])) 
-                if (photo[i] != -999) else -999 for i in range(len(flam))])
+    mags = np.array([(-2.5 * np.log10(calibrated_flux[i] / filters[i].Vega_zero_Jy.value)) 
+                if (photo[i] != -999) else -999 for i in range(len(calibrated_flux))])
+    e_mags = np.array([(e_calibrated_flux[i] /(1.09 * calibrated_flux[i])) 
+                if (photo[i] != -999) else -999 for i in range(len(calibrated_flux))])
     return mags, e_mags 
 
 
@@ -161,29 +156,37 @@ def panstarrs_photo(source_ids):
         """
     gaia_result = gaia_tap_service.search(gaia_query).to_table()
 
+    # the catalogue name in VizieR
+    CATALOGUE = "II/349"
+    catalogue_ivoid = f"ivo://CDS.VizieR/{CATALOGUE}"
+    voresource = registry.search(ivoid=catalogue_ivoid)[0]
+    tables = voresource.get_tables()
+
     # then use the panstarrs ids to get the panstarrs data
     panstarrs_tap_service = vo.dal.TAPService('http://vao.stsci.edu/PS1DR2/tapservice.aspx')
     ps1_query = """select *
-                    from dbo.MeanObjectView
+                    from "II/349/ps1"
                     where objID in {}""".format(tuple(gaia_result['original_ext_source_id']))
-    panstarrs_photo = panstarrs_tap_service.search(ps1_query).to_table()
-    panstarrs_photo = join(gaia_result, panstarrs_photo, keys_left='original_ext_source_id', keys_right='objID')
-    panstarrs_photo = panstarrs_photo[['source_id', 'qualityFlag', 'gMeanPSFMag', 'rMeanPSFMag', 'iMeanPSFMag', 'zMeanPSFMag', 'yMeanPSFMag',
-                                        'gMeanPSFMagErr', 'rMeanPSFMagErr', 'iMeanPSFMagErr', 'zMeanPSFMagErr', 'yMeanPSFMagErr']]
+    tap_records = voresource.get_service("tap").run_sync(ps1_query).to_table()
+
+    panstarrs_photo = join(gaia_result, tap_records, keys_left='original_ext_source_id', keys_right='objID')
 
     # bitmasks for checking the quality of the source
-    mask0 = 0x00000001 # the source is extended in PS
-    mask1 = 0x00000004 # good-quality measurement in PS
-    mask2 = 0x00000016 # good-quality object in the stack 
-    mask3 = 0x00000020 # ghe primary stack measurements are the best
-    mask = np.all([~(panstarrs_photo['qualityFlag'] & mask0), panstarrs_photo['qualityFlag'] & mask1,
-                    panstarrs_photo['qualityFlag'] & mask2, panstarrs_photo['qualityFlag'] & mask3], axis=0)
+    #mask0 = 0x00000001 # the source is extended in PS
+    #mask1 = 0x00000004 # good-quality measurement in PS
+    #mask2 = 0x00000016 # good-quality object in the stack 
+    #mask3 = 0x00000020 # ghe primary stack measurements are the best
+    #mask = np.all([~(panstarrs_photo['qualityFlag'] & mask0), panstarrs_photo['qualityFlag'] & mask1,
+    #                panstarrs_photo['qualityFlag'] & mask2, panstarrs_photo['qualityFlag'] & mask3], axis=0)
 
     # change the column names to pyphot standards
-    panstarrs_photo.rename_columns(['gMeanPSFMag', 'rMeanPSFMag', 'iMeanPSFMag', 'zMeanPSFMag', 'yMeanPSFMag',
-                                    'gMeanPSFMagErr', 'rMeanPSFMagErr', 'iMeanPSFMagErr', 'zMeanPSFMagErr', 'yMeanPSFMagErr'],
+    panstarrs_photo.rename_columns(['gmag', 'rmag', 'imag', 'zmag', 'ymag',
+                                    'e_gmag', 'e_rmag', 'e_imag', 'e_zmag', 'e_ymag'],
                                     ['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y', 'e_PS1_g', 'e_PS1_r', 'e_PS1_i', 'e_PS1_z', 'e_PS1_y'])
-    return panstarrs_photo[mask]
+
+    #ps_basetable = Table.read('https://cdsarc.cds.unistra.fr/viz-bin/nph-Cat/fits?J/II/349/ps1.dat')
+
+    return panstarrs_photo#[mask], ps_basetable
 
 def fetch_photometry(source_ids):
     try:
