@@ -156,37 +156,29 @@ def panstarrs_photo(source_ids):
         """
     gaia_result = gaia_tap_service.search(gaia_query).to_table()
 
-    # the catalogue name in VizieR
-    CATALOGUE = "II/349"
-    catalogue_ivoid = f"ivo://CDS.VizieR/{CATALOGUE}"
-    voresource = registry.search(ivoid=catalogue_ivoid)[0]
-    tables = voresource.get_tables()
-
     # then use the panstarrs ids to get the panstarrs data
     panstarrs_tap_service = vo.dal.TAPService('http://vao.stsci.edu/PS1DR2/tapservice.aspx')
     ps1_query = """select *
-                    from "II/349/ps1"
+                    from dbo.MeanObjectView
                     where objID in {}""".format(tuple(gaia_result['original_ext_source_id']))
-    tap_records = voresource.get_service("tap").run_sync(ps1_query).to_table()
-
-    panstarrs_photo = join(gaia_result, tap_records, keys_left='original_ext_source_id', keys_right='objID')
+    panstarrs_photo = panstarrs_tap_service.search(ps1_query).to_table()
+    panstarrs_photo = join(gaia_result, panstarrs_photo, keys_left='original_ext_source_id', keys_right='objID')
+    panstarrs_photo = panstarrs_photo[['source_id', 'qualityFlag', 'gMeanPSFMag', 'rMeanPSFMag', 'iMeanPSFMag', 'zMeanPSFMag', 'yMeanPSFMag',
+                                        'gMeanPSFMagErr', 'rMeanPSFMagErr', 'iMeanPSFMagErr', 'zMeanPSFMagErr', 'yMeanPSFMagErr']]
 
     # bitmasks for checking the quality of the source
-    #mask0 = 0x00000001 # the source is extended in PS
-    #mask1 = 0x00000004 # good-quality measurement in PS
-    #mask2 = 0x00000016 # good-quality object in the stack 
-    #mask3 = 0x00000020 # ghe primary stack measurements are the best
-    #mask = np.all([~(panstarrs_photo['qualityFlag'] & mask0), panstarrs_photo['qualityFlag'] & mask1,
-    #                panstarrs_photo['qualityFlag'] & mask2, panstarrs_photo['qualityFlag'] & mask3], axis=0)
+    mask0 = 0x00000001 # the source is extended in PS
+    mask1 = 0x00000004 # good-quality measurement in PS
+    mask2 = 0x00000016 # good-quality object in the stack 
+    mask3 = 0x00000020 # ghe primary stack measurements are the best
+    mask = np.all([~(panstarrs_photo['qualityFlag'] & mask0), panstarrs_photo['qualityFlag'] & mask1,
+                    panstarrs_photo['qualityFlag'] & mask2, panstarrs_photo['qualityFlag'] & mask3], axis=0)
 
     # change the column names to pyphot standards
-    panstarrs_photo.rename_columns(['gmag', 'rmag', 'imag', 'zmag', 'ymag',
-                                    'e_gmag', 'e_rmag', 'e_imag', 'e_zmag', 'e_ymag'],
+    panstarrs_photo.rename_columns(['gMeanPSFMag', 'rMeanPSFMag', 'iMeanPSFMag', 'zMeanPSFMag', 'yMeanPSFMag',
+                                    'gMeanPSFMagErr', 'rMeanPSFMagErr', 'iMeanPSFMagErr', 'zMeanPSFMagErr', 'yMeanPSFMagErr'],
                                     ['PS1_g', 'PS1_r', 'PS1_i', 'PS1_z', 'PS1_y', 'e_PS1_g', 'e_PS1_r', 'e_PS1_i', 'e_PS1_z', 'e_PS1_y'])
-
-    #ps_basetable = Table.read('https://cdsarc.cds.unistra.fr/viz-bin/nph-Cat/fits?J/II/349/ps1.dat')
-
-    return panstarrs_photo#[mask], ps_basetable
+    return panstarrs_photo[mask]
 
 def fetch_photometry(source_ids):
     try:
@@ -265,7 +257,7 @@ class Photometry:
             if len(ix) == 0:
                 band = np.array(['Gaia_G', 'Gaia_BP', 'Gaia_RP'])
 
-            invalid = np.where(photo < -50)
+            invalid = np.where(np.isnan(photo))
             band = np.delete(band, invalid)
             photo = np.delete(photo, invalid)
             e_photo = np.delete(e_photo, invalid)
