@@ -155,13 +155,17 @@ class MCMCEngine():
             return np.sum(-0.5*np.square(((self.fluxes - flux_model) / self.e_fluxes)) - np.log(np.sqrt(2*np.pi) * self.e_fluxes)) # convert to log likelihood
         
         def log_prior(params):
-            teff, radius = params[0], params[1] # fetch the teff and logg values
             # ensure that teff and logg are within the bounds of possiblity
             #if (self.teff_lims[0] <= teff <= self.teff_lims[1]) and (self.logg_lims[0] <= logg <= self.logg_lims[1]) and (0 < radius < 1):
-            if (self.teff_lims[0] <= teff <= self.teff_lims[1]) and (0 < radius < 1):
-                return 0.0
-            else:
+            teff, radius = params
+            #flat priors on b, c
+            if not (self.teff_lims[0] <= teff <= self.teff_lims[1]) and (0 < radius < 1):
                 return -np.inf
+            #gaussian prior on a
+            if (self.teff_prior is not None) and (self.e_teff_prior is not None):
+                return np.log(1.0/(np.sqrt(2*np.pi)*self.e_teff_prior))-0.5*(teff-self.teff_prior)**2/self.e_teff_prior**2
+            else:
+                return 0.0
             
         lp = log_prior(params)
         ll = log_likelihood(params)
@@ -169,7 +173,7 @@ class MCMCEngine():
             return -np.inf
         return lp + ll
     
-    def run_mcmc(self, mags, e_mags, distance, initial_guess):
+    def run_mcmc(self, mags, e_mags, distance, initial_guess, teff_prior):
         """
         Main MCMC run function using emcee
         Inputs:
@@ -179,6 +183,8 @@ class MCMCEngine():
         """
         self.distance = distance
         self.fluxes, self.e_fluxes = self.mag_to_flux(mags, e_mags)
+        self.teff_prior, self.e_teff_prior = teff_prior
+        print(self.teff_prior, self.e_teff_prior)
 
         # first, run 2500 steps of MCMC to understand how much we actually need to run
         nsteps = 2500
