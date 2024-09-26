@@ -95,7 +95,7 @@ class LaPlataBase:
         select = ~np.isnan(mass_array + logg + age_cool + teff + Mbol)# * (age_cool > 1)
         return mass_array[select], logg[select], age_cool[select], teff[select], Mbol[select]
     
-    def massradius(self, massarray, teffarray):
+    def masstoradius(self, massarray, teffarray):
         radius_sun = 6.957e8
         mass_sun = 1.9884e30
         newton_G = 6.674e-11

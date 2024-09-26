@@ -108,7 +108,7 @@ def get_msrv(catalog, params):
     catalog = join(catalog, gaia_d1, keys = 'ms_source_id')
     return catalog
             
-def radius_from_cmd(catalog, params):
+def radius_from_cmd(catalog):
     newton_G = 6.674e-11
     mass_sun = 1.9884e30
     radius_sun = 6.957e8
@@ -119,13 +119,19 @@ def radius_from_cmd(catalog, params):
                                 atm_type='H',
                                 HR_bands=('bp3-rp3', 'G3'))
 
-    bp3_rp3 = catalog['bpmag_dereddened'] - catalog['rpmag_dereddened']
-    G3 = catalog['gmag_dereddened'] - 5 * np.log10(catalog['r_med_geo']) + 5
+    try:
+        bp3_rp3 = catalog['bpmag_dereddened'] - catalog['rpmag_dereddened']
+        G3 = catalog['gmag_dereddened'] - 5 * np.log10(catalog['r_med_geo']) + 5
+    except:
+        print('no dereddened photometry')
+        bp3_rp3 = catalog['wd_phot_bp_mean_mag'] - catalog['wd_phot_rp_mean_mag']
+        G3 = catalog['wd_phot_g_mean_mag'] - 5 * np.log10(catalog['r_med_geo']) + 5
+
     logg = model['HR_to_logg'](bp3_rp3, G3)
     mass = model['HR_to_mass'](bp3_rp3, G3)
 
     catalog['cmd_radius'] = np.sqrt((newton_G * mass * mass_sun) / (10**logg/100)) / radius_sun
-    return catalog[catalog['cmd_radius'] < float(params['cutoff_radius'])]
+    return catalog
 
 def deredden_gaia(catalog, bsq):
     geometry = [SkyCoord(frame="galactic", l=catalog['wd_l'][i]*u.deg, b=catalog['wd_b'][i]*u.deg, distance = catalog['r_med_geo'][i] * u.pc) for i in range(len(catalog))] 
@@ -170,7 +176,8 @@ def build_catalog(params, catalog, bsq = None):
     smallcatalog = catalog[mask].copy()
     print(f'Found {len(smallcatalog):d} WD+MS Wide Binaries')
 
-    highmass = radius_from_cmd(smallcatalog, params)
+    highmass = radius_from_cmd(smallcatalog)
+    highmass = highmass[highmass['cmd_radius'] < float(params['cutoff_radius'])]
     print(f'Found {len(highmass)} High-Mass WD+MS Binaries')
 
     return highmass
